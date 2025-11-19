@@ -18,9 +18,7 @@ fun main() {
         val original = parts[0]
         val translation = parts[1]
 
-        val correctAnswers =
-            if (parts.size == 3) parts[2].toInt()
-            else 0
+        val correctAnswers = parts.getOrNull(2)?.toInt() ?: 0
 
         val word = Word(original, translation, correctAnswers)
         dictionary.add(word)
