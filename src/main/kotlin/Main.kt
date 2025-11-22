@@ -2,6 +2,11 @@ package org.example
 
 import java.io.File
 
+private const val MIN_CORRECT = 3
+private const val MENU_STUDY = 1
+private const val MENU_STATS = 2
+private const val MENU_EXIT = 0
+
 data class Word(
     val original: String,
     val translate: String,
@@ -9,43 +14,55 @@ data class Word(
 )
 
 fun loadDictionary(): List<Word> {
-    val lines = File("src/main/resources/words.txt").readLines()
-    val dictionary = mutableListOf<Word>()
-
-    for (line in lines) {
-        val parts = line.split("|")
-
-        val original = parts[0]
-        val translation = parts[1]
-        val correctAnswers = parts.getOrNull(2)?.toInt() ?: 0
-
-        val word = Word(original, translation, correctAnswers)
-        dictionary.add(word)
-    }
-
-    return dictionary
+    return File("src/main/resources/words.txt")
+        .readLines()
+        .map { line ->
+            val parts = line.split("|")
+            Word(
+                original = parts[0],
+                translate = parts[1],
+                correctAnswersCount = parts.getOrNull(2)?.toInt() ?: 0
+            )
+        }
 }
 
 fun main() {
     val dictionary = loadDictionary()
 
     while (true) {
-        println("\nМеню:")
-        println("1 – Учить слова")
-        println("2 – Статистика")
-        println("0 – Выход")
+        println(
+            """
+            Меню:
+            1 – Учить слова
+            2 – Статистика
+            0 – Выход
+            """.trimIndent()
+        )
         print("Ваш выбор: ")
 
-        val input = readln()
+        val input = readln().toIntOrNull()
 
         when (input) {
-            "1" -> println("Вы выбрали: Учить слова")
-            "2" -> println("Вы выбрали: Статистика")
-            "0" -> {
-                println("Выход из программы...")
+
+            MENU_STUDY -> {
+                println("Вы выбрали: Учить слова")
+            }
+
+            MENU_STATS -> {
+                val learnedWords = dictionary.filter { it.correctAnswersCount >= MIN_CORRECT }
+                val total = dictionary.size
+                val learned = learnedWords.size
+                val percent = if (total > 0) learned * 100 / total else 0
+
+                println("Выучено $learned из $total слов | $percent%\n")
+            }
+
+            MENU_EXIT -> {
+                println("Выход из программы…")
                 break
             }
-            else -> println("Введите число 1, 2 или 0")
+
+            else -> println("Введите 1, 2 или 0")
         }
     }
 }
