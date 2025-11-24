@@ -26,8 +26,61 @@ fun loadDictionary(): List<Word> {
         }
 }
 
+fun studyWords(dictionary: MutableList<Word>) {
+    while (true) {
+        val notLearnedList = dictionary.filter { it.correctAnswersCount < MIN_CORRECT }
+
+        if (notLearnedList.isEmpty()) {
+            println("Все слова в словаре выучены\n")
+            return
+        }
+
+        val questionWords = notLearnedList.shuffled().take(4)
+
+        val correctAnswer = questionWords.random()
+
+        println()
+        println("${correctAnswer.original}:")
+        questionWords.forEachIndexed { index, word ->
+            println(" ${index + 1} - ${word.translate}")
+        }
+        println()
+        print("Ваш ответ (введите номер, 0 — выход в меню): ")
+
+        val input = readln().toIntOrNull()
+
+        if (input == 0) {
+            println()
+            return
+        }
+
+        if (input == null || input !in 1..questionWords.size) {
+            println("Введите число от 1 до ${questionWords.size}\n")
+            continue
+        }
+
+        val chosenWord = questionWords[input - 1]
+
+        if (chosenWord == correctAnswer) {
+            println("Правильно!\n")
+
+            val indexInDictionary = dictionary.indexOfFirst {
+                it.original == correctAnswer.original && it.translate == correctAnswer.translate
+            }
+            if (indexInDictionary != -1) {
+                val old = dictionary[indexInDictionary]
+                dictionary[indexInDictionary] = old.copy(
+                    correctAnswersCount = old.correctAnswersCount + 1
+                )
+            }
+        } else {
+            println("Неверно. Правильный ответ: ${correctAnswer.translate}\n")
+        }
+    }
+}
+
 fun main() {
-    val dictionary = loadDictionary()
+    val dictionary = loadDictionary().toMutableList()
 
     while (true) {
         println(
@@ -46,6 +99,7 @@ fun main() {
 
             MENU_STUDY -> {
                 println("Вы выбрали: Учить слова")
+                studyWords(dictionary)
             }
 
             MENU_STATS -> {
@@ -62,7 +116,7 @@ fun main() {
                 break
             }
 
-            else -> println("Введите 1, 2 или 0")
+            else -> println("Введите 1, 2 или 0\n")
         }
     }
 }
