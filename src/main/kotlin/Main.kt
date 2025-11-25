@@ -13,7 +13,7 @@ data class Word(
     val correctAnswersCount: Int = 0
 )
 
-fun loadDictionary(): List<Word> {
+fun loadDictionary(): MutableList<Word> {
     return File("src/main/resources/words.txt")
         .readLines()
         .map { line ->
@@ -24,6 +24,15 @@ fun loadDictionary(): List<Word> {
                 correctAnswersCount = parts.getOrNull(2)?.toInt() ?: 0
             )
         }
+        .toMutableList()
+}
+
+fun saveDictionary(dictionary: List<Word>) {
+    val file = File("src/main/resources/words.txt")
+    val lines = dictionary.map { word ->
+        "${word.original}|${word.translate}|${word.correctAnswersCount}"
+    }
+    file.writeText(lines.joinToString("\n"))
 }
 
 fun studyWords(dictionary: MutableList<Word>) {
@@ -36,51 +45,54 @@ fun studyWords(dictionary: MutableList<Word>) {
         }
 
         val questionWords = notLearnedList.shuffled().take(4)
-
         val correctAnswer = questionWords.random()
+        val correctAnswerId = questionWords.indexOf(correctAnswer) + 1
 
         println()
         println("${correctAnswer.original}:")
         questionWords.forEachIndexed { index, word ->
             println(" ${index + 1} - ${word.translate}")
         }
+        println(" ----------")
+        println(" 0 - Меню")
         println()
-        print("Ваш ответ (введите номер, 0 — выход в меню): ")
 
-        val input = readln().toIntOrNull()
+        print("Ваш ответ (введите номер варианта): ")
+        val userAnswerInput = readln().toIntOrNull()
 
-        if (input == 0) {
+        if (userAnswerInput == 0) {
             println()
             return
         }
 
-        if (input == null || input !in 1..questionWords.size) {
-            println("Введите число от 1 до ${questionWords.size}\n")
+        if (userAnswerInput == null || userAnswerInput !in 1..questionWords.size) {
+            println("Введите число от 0 до ${questionWords.size}\n")
             continue
         }
 
-        val chosenWord = questionWords[input - 1]
-
-        if (chosenWord == correctAnswer) {
+        if (userAnswerInput == correctAnswerId) {
             println("Правильно!\n")
 
             val indexInDictionary = dictionary.indexOfFirst {
-                it.original == correctAnswer.original && it.translate == correctAnswer.translate
+                it.original == correctAnswer.original &&
+                        it.translate == correctAnswer.translate
             }
+
             if (indexInDictionary != -1) {
                 val old = dictionary[indexInDictionary]
                 dictionary[indexInDictionary] = old.copy(
                     correctAnswersCount = old.correctAnswersCount + 1
                 )
+                saveDictionary(dictionary)
             }
         } else {
-            println("Неверно. Правильный ответ: ${correctAnswer.translate}\n")
+            println("Неправильно! ${correctAnswer.original} – это ${correctAnswer.translate}\n")
         }
     }
 }
 
 fun main() {
-    val dictionary = loadDictionary().toMutableList()
+    val dictionary = loadDictionary()
 
     while (true) {
         println(
@@ -96,7 +108,6 @@ fun main() {
         val input = readln().toIntOrNull()
 
         when (input) {
-
             MENU_STUDY -> {
                 println("Вы выбрали: Учить слова")
                 studyWords(dictionary)
@@ -107,7 +118,6 @@ fun main() {
                 val total = dictionary.size
                 val learned = learnedWords.size
                 val percent = if (total > 0) learned * 100 / total else 0
-
                 println("Выучено $learned из $total слов | $percent%\n")
             }
 
