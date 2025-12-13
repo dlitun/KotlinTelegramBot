@@ -15,30 +15,35 @@ fun main() {
         val updates = getUpdates(updateId)
         println(updates)
 
-        val startUpdateId = updates.lastIndexOf("\"update_id\":")
-        val endUpdateId = updates.lastIndexOf(",\"message\"")
+        val updateIdRegex = "\"update_id\":(\\d+)".toRegex()
+        val lastUpdateIdMatch = updateIdRegex.findAll(updates).lastOrNull()
 
-        if (startUpdateId == -1 || endUpdateId == -1) {
+        if (lastUpdateIdMatch == null) {
             continue
         }
 
-        val updateIdString =
-            updates.substring(startUpdateId + 12, endUpdateId)
+        val lastUpdateId = lastUpdateIdMatch.groupValues[1].toInt()
+        updateId = lastUpdateId + 1
 
-        updateId = updateIdString.toInt() + 1
+        val messageTextRegex = "\"text\":\"(.+?)\"".toRegex()
+        val lastTextMatch = messageTextRegex.findAll(updates).lastOrNull()
+        val text = lastTextMatch?.groupValues?.get(1)
+
+        println("update_id = $lastUpdateId")
+        println("text = $text")
+        println("====================================")
     }
 }
 
 fun getUpdates(updateId: Int): String {
-    val url =
-        "https://api.telegram.org/bot$BOT_TOKEN/getUpdates?offset=$updateId"
+    val url = "https://api.telegram.org/bot$BOT_TOKEN/getUpdates?offset=$updateId"
 
-    val client = HttpClient.newBuilder().build()
-    val request = HttpRequest.newBuilder()
+    val client: HttpClient = HttpClient.newBuilder().build()
+    val request: HttpRequest = HttpRequest.newBuilder()
         .uri(URI.create(url))
         .build()
 
-    val response =
+    val response: HttpResponse<String> =
         client.send(request, HttpResponse.BodyHandlers.ofString())
 
     return response.body()
