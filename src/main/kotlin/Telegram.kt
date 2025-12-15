@@ -12,34 +12,45 @@ fun main() {
     while (true) {
         Thread.sleep(2000)
 
-        val updates = getUpdates(updateId)
+        val updates = getUpdates(updateId) ?: continue
         println(updates)
 
-        val startUpdateId = updates.lastIndexOf("\"update_id\":")
-        val endUpdateId = updates.lastIndexOf(",\"message\"")
+        val updateIdRegex = "\"update_id\":\\s*(\\d+)".toRegex()
+        val lastUpdateIdMatch = updateIdRegex.findAll(updates).lastOrNull()
 
-        if (startUpdateId == -1 || endUpdateId == -1) {
+        if (lastUpdateIdMatch == null) {
             continue
         }
 
-        val updateIdString =
-            updates.substring(startUpdateId + 12, endUpdateId)
+        val lastUpdateId = lastUpdateIdMatch.groupValues[1].toInt()
+        updateId = lastUpdateId + 1
 
-        updateId = updateIdString.toInt() + 1
+        val messageTextRegex = "\"text\":\\s*\"(.+?)\"".toRegex()
+        val lastTextMatch = messageTextRegex.findAll(updates).lastOrNull()
+        val text = lastTextMatch?.groupValues?.get(1)
+
+        println("update_id = $lastUpdateId")
+        println("text = $text")
+        println("====================================")
     }
 }
 
-fun getUpdates(updateId: Int): String {
+fun getUpdates(updateId: Int): String? {
     val url =
         "https://api.telegram.org/bot$BOT_TOKEN/getUpdates?offset=$updateId"
 
-    val client = HttpClient.newBuilder().build()
-    val request = HttpRequest.newBuilder()
-        .uri(URI.create(url))
-        .build()
+    return try {
+        val client = HttpClient.newBuilder().build()
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .build()
 
-    val response =
-        client.send(request, HttpResponse.BodyHandlers.ofString())
+        val response =
+            client.send(request, HttpResponse.BodyHandlers.ofString())
 
-    return response.body()
+        response.body()
+    } catch (e: Exception) {
+        println("Ошибка HTTP запроса: ${e.message}")
+        null
+    }
 }
