@@ -2,6 +2,8 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.URLEncoder
+import kotlin.text.Charsets.UTF_8
 
 private const val BOT_TOKEN = "8591825097:AAF0jbqDCJV1xfHkA-ZFp-O1XyF1kNz2GcM"
 
@@ -56,7 +58,8 @@ class TelegramBotService(private val token: String) {
     }
 
     fun sendMessage(chatId: String, text: String): String {
-        val url = "https://api.telegram.org/bot$token/sendMessage?chat_id=$chatId&text=$text"
+        val encodedText = URLEncoder.encode(text, UTF_8)
+        val url = "https://api.telegram.org/bot$token/sendMessage?chat_id=$chatId&text=$encodedText"
 
         val request = HttpRequest.newBuilder()
             .uri(URI.create(url))
