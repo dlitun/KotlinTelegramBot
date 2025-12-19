@@ -1,0 +1,83 @@
+package telegram
+
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.URI
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import kotlin.text.Charsets.UTF_8
+
+private const val BASE_URL = "https://api.telegram.org/bot"
+
+class TelegramBotService(private val token: String) {
+
+    private val httpClient: HttpClient = HttpClient.newBuilder().build()
+    private val okHttpClient = OkHttpClient()
+
+    fun getUpdates(offset: Int): String {
+        val url = "${BASE_URL}$token/getUpdates?offset=$offset"
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .GET()
+            .build()
+
+        return try {
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+        } catch (e: Exception) {
+            "Ошибка getUpdates: ${e.message}"
+        }
+    }
+
+    fun sendMessage(chatId: String, text: String): String {
+        val encodedText = URLEncoder.encode(text, UTF_8)
+        val url = "${BASE_URL}$token/sendMessage?chat_id=$chatId&text=$encodedText"
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .GET()
+            .build()
+
+        return try {
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+        } catch (e: Exception) {
+            "Ошибка sendMessage: ${e.message}"
+        }
+    }
+
+    fun sendMenu(chatId: String, learnCallback: String, statsCallback: String): String {
+        val url = "${BASE_URL}$token/sendMessage"
+
+        val json = """
+            {
+              "chat_id": $chatId,
+              "text": "Основное меню",
+              "reply_markup": {
+                "inline_keyboard": [
+                  [
+                    { "text": "Изучить слова", "callback_data": "$learnCallback" },
+                    { "text": "Статистика", "callback_data": "$statsCallback" }
+                  ]
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .build()
+
+        return try {
+            okHttpClient.newCall(request).execute().use { response ->
+                response.body?.string() ?: ""
+            }
+        } catch (e: Exception) {
+            "Ошибка sendMenu: ${e.message}"
+        }
+    }
+}

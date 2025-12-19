@@ -1,6 +1,6 @@
 package data
 
-import model.Word
+import trainer.Word
 import java.io.File
 
 class DictionaryRepository(
