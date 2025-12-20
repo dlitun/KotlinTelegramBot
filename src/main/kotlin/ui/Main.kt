@@ -7,7 +7,7 @@ import model.toTrainingStats
 private const val MIN_CORRECT = 3
 
 fun main() {
-    val repository = DictionaryRepository("src/main/resources/words.txt")
+    val repository = DictionaryRepository("src/telegram.main/resources/words.txt")
     val dictionary = repository.load().toMutableList()
 
     val trainer = WordTrainer(

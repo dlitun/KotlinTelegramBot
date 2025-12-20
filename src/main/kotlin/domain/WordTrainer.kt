@@ -2,7 +2,7 @@ package domain
 
 import data.DictionaryRepository
 import model.Question
-import model.Word
+import trainer.Word
 
 class WordTrainer(
     private val dictionary: List<Word>,

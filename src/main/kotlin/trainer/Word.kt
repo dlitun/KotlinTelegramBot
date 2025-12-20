@@ -1,4 +1,4 @@
-package model
+package trainer
 
 data class Word(
     val original: String,
