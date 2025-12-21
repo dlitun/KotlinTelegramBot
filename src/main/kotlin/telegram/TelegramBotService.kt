@@ -13,6 +13,9 @@ import kotlin.text.Charsets.UTF_8
 
 private const val BASE_URL = "https://api.telegram.org/bot"
 
+private const val CALLBACK_LEARN = "learn_words_clicked"
+private const val CALLBACK_STATS = "statistics_clicked"
+
 class TelegramBotService(private val token: String) {
 
     private val httpClient: HttpClient = HttpClient.newBuilder().build()
@@ -20,13 +23,15 @@ class TelegramBotService(private val token: String) {
 
     fun getUpdates(offset: Int): String {
         val url = "${BASE_URL}$token/getUpdates?offset=$offset"
+
         val request = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .GET()
             .build()
 
         return try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            response.body()
         } catch (e: Exception) {
             "Ошибка getUpdates: ${e.message}"
         }
@@ -35,19 +40,21 @@ class TelegramBotService(private val token: String) {
     fun sendMessage(chatId: String, text: String): String {
         val encodedText = URLEncoder.encode(text, UTF_8)
         val url = "${BASE_URL}$token/sendMessage?chat_id=$chatId&text=$encodedText"
+
         val request = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .GET()
             .build()
 
         return try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            response.body()
         } catch (e: Exception) {
             "Ошибка sendMessage: ${e.message}"
         }
     }
 
-    fun sendMenu(chatId: String, learnCallback: String, statsCallback: String): String {
+    fun sendMenu(chatId: String): String {
         val url = "${BASE_URL}$token/sendMessage"
 
         val json = """
@@ -57,8 +64,8 @@ class TelegramBotService(private val token: String) {
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Изучить слова", "callback_data": "$learnCallback" },
-                    { "text": "Статистика", "callback_data": "$statsCallback" }
+                    { "text": "Изучить слова", "callback_data": "$CALLBACK_LEARN" },
+                    { "text": "Статистика", "callback_data": "$CALLBACK_STATS" }
                   ]
                 ]
               }
