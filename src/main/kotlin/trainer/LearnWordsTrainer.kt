@@ -1,17 +1,25 @@
 package trainer
 
+import model.Statistics
+
 class LearnWordsTrainer {
 
-    private var learnedWords: Int = 0
-    private var totalWords: Int = 0
+    private var learnedWords = 0
+    private var totalWords = 0
 
     fun start(): String {
         return "Начинаем изучение слов"
     }
 
-    fun getStatistics(): String {
-        val percent = if (totalWords == 0) 0 else (learnedWords * 100) / totalWords
-        return "Выучено $learnedWords из $totalWords слов | $percent%"
+    fun getStatistics(): Statistics {
+        val percent =
+            if (totalWords == 0) 0 else (learnedWords * 100) / totalWords
+
+        return Statistics(
+            totalCount = totalWords,
+            learnedCount = learnedWords,
+            percent = percent
+        )
     }
 
     fun setProgress(learned: Int, total: Int) {

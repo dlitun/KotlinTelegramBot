@@ -13,9 +13,6 @@ import kotlin.text.Charsets.UTF_8
 
 private const val BASE_URL = "https://api.telegram.org/bot"
 
-private const val CALLBACK_LEARN = "learn_words_clicked"
-private const val CALLBACK_STATS = "statistics_clicked"
-
 class TelegramBotService(private val token: String) {
 
     private val httpClient: HttpClient = HttpClient.newBuilder().build()
@@ -54,7 +51,7 @@ class TelegramBotService(private val token: String) {
         }
     }
 
-    fun sendMenu(chatId: String): String {
+    fun sendMenu(chatId: String, callbackLearn: String, callbackStats: String): String {
         val url = "${BASE_URL}$token/sendMessage"
 
         val json = """
@@ -64,8 +61,8 @@ class TelegramBotService(private val token: String) {
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Изучить слова", "callback_data": "$CALLBACK_LEARN" },
-                    { "text": "Статистика", "callback_data": "$CALLBACK_STATS" }
+                    { "text": "Изучить слова", "callback_data": "$callbackLearn" },
+                    { "text": "Статистика", "callback_data": "$callbackStats" }
                   ]
                 ]
               }
