@@ -41,7 +41,7 @@ fun main(args: Array<String>) {
         val messageChatId = messageChatIdRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
 
         if (text == START_COMMAND && messageChatId != null) {
-            service.sendMenu(messageChatId)
+            service.sendMenu(messageChatId, CALLBACK_LEARN, CALLBACK_STATS)
             continue
         }
 
@@ -55,7 +55,13 @@ fun main(args: Array<String>) {
         if (data != null && callbackChatId != null) {
             when (data) {
                 CALLBACK_LEARN -> service.sendMessage(callbackChatId, trainer.start())
-                CALLBACK_STATS -> service.sendMessage(callbackChatId, trainer.getStatistics())
+
+                CALLBACK_STATS -> {
+                    val stats = trainer.getStatistics()
+                    val message = "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
+                    service.sendMessage(callbackChatId, message)
+                }
+
                 else -> service.sendMessage(callbackChatId, "Неизвестная кнопка: $data")
             }
         }

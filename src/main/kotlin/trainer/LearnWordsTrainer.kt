@@ -1,29 +1,23 @@
 package trainer
 
-import model.Statistics
-
-class LearnWordsTrainer {
-
-    private var learnedWords = 0
-    private var totalWords = 0
+class LearnWordsTrainer(
+    private val dictionary: List<Word> = emptyList(),
+    private val learnedAnswerCount: Int = 3
+) {
 
     fun start(): String {
         return "Начинаем изучение слов"
     }
 
     fun getStatistics(): Statistics {
-        val percent =
-            if (totalWords == 0) 0 else (learnedWords * 100) / totalWords
+        val totalCount = dictionary.size
+        val learnedCount = dictionary.count { it.correctAnswersCount >= learnedAnswerCount }
+        val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
 
         return Statistics(
-            totalCount = totalWords,
-            learnedCount = learnedWords,
+            totalCount = totalCount,
+            learnedCount = learnedCount,
             percent = percent
         )
-    }
-
-    fun setProgress(learned: Int, total: Int) {
-        learnedWords = learned
-        totalWords = total
     }
 }
