@@ -20,13 +20,15 @@ class TelegramBotService(private val token: String) {
 
     fun getUpdates(offset: Int): String {
         val url = "${BASE_URL}$token/getUpdates?offset=$offset"
+
         val request = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .GET()
             .build()
 
         return try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            response.body()
         } catch (e: Exception) {
             "Ошибка getUpdates: ${e.message}"
         }
@@ -35,19 +37,21 @@ class TelegramBotService(private val token: String) {
     fun sendMessage(chatId: String, text: String): String {
         val encodedText = URLEncoder.encode(text, UTF_8)
         val url = "${BASE_URL}$token/sendMessage?chat_id=$chatId&text=$encodedText"
+
         val request = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .GET()
             .build()
 
         return try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body()
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            response.body()
         } catch (e: Exception) {
             "Ошибка sendMessage: ${e.message}"
         }
     }
 
-    fun sendMenu(chatId: String, learnCallback: String, statsCallback: String): String {
+    fun sendMenu(chatId: String, callbackLearn: String, callbackStats: String): String {
         val url = "${BASE_URL}$token/sendMessage"
 
         val json = """
@@ -57,8 +61,8 @@ class TelegramBotService(private val token: String) {
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Изучить слова", "callback_data": "$learnCallback" },
-                    { "text": "Статистика", "callback_data": "$statsCallback" }
+                    { "text": "Изучить слова", "callback_data": "$callbackLearn" },
+                    { "text": "Статистика", "callback_data": "$callbackStats" }
                   ]
                 ]
               }
