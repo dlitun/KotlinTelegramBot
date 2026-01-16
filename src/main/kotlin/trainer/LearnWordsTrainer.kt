@@ -1,5 +1,7 @@
 package trainer
 
+import model.Statistics
+
 class LearnWordsTrainer(
     private val dictionary: List<Word> = emptyList(),
     private val learnedAnswerCount: Int = 3
