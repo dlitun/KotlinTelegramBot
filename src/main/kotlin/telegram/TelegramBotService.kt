@@ -1,5 +1,6 @@
 package telegram
 
+import model.Question
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -12,6 +13,7 @@ import java.net.http.HttpResponse
 import kotlin.text.Charsets.UTF_8
 
 private const val BASE_URL = "https://api.telegram.org/bot"
+private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 class TelegramBotService(private val token: String) {
 
@@ -51,7 +53,7 @@ class TelegramBotService(private val token: String) {
         }
     }
 
-    fun sendMenu(chatId: String, callbackLearn: String, callbackStats: String): String {
+    fun sendMenu(chatId: String): String {
         val url = "${BASE_URL}$token/sendMessage"
 
         val json = """
@@ -61,8 +63,8 @@ class TelegramBotService(private val token: String) {
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Изучить слова", "callback_data": "$callbackLearn" },
-                    { "text": "Статистика", "callback_data": "$callbackStats" }
+                    { "text": "Изучить слова", "callback_data": "learn_words_clicked" },
+                    { "text": "Статистика", "callback_data": "statistics_clicked" }
                   ]
                 ]
               }
@@ -82,6 +84,45 @@ class TelegramBotService(private val token: String) {
             }
         } catch (e: Exception) {
             "Ошибка sendMenu: ${e.message}"
+        }
+    }
+
+    fun sendQuestion(chatId: Int, question: Question): String {
+        val url = "${BASE_URL}$token/sendMessage"
+
+        val buttonsJson = question.variants
+            .mapIndexed { index, variant ->
+                """{ "text": "${variant.translate}", "callback_data": "${CALLBACK_DATA_ANSWER_PREFIX}$index" }"""
+            }
+            .joinToString(separator = ",")
+
+        val json = """
+            {
+              "chat_id": $chatId,
+              "text": "${question.correctAnswer.original}",
+              "reply_markup": {
+                "inline_keyboard": [
+                  [
+                    $buttonsJson
+                  ]
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .build()
+
+        return try {
+            okHttpClient.newCall(request).execute().use { response ->
+                response.body?.string() ?: ""
+            }
+        } catch (e: Exception) {
+            "Ошибка sendQuestion: ${e.message}"
         }
     }
 }
