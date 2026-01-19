@@ -9,13 +9,12 @@ private const val HELLO_TEXT = "Hello"
 private const val CALLBACK_LEARN = "learn_words_clicked"
 private const val CALLBACK_STATS = "statistics_clicked"
 
-private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
-
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
         ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
 
     val service = TelegramBotService(token)
+
     val trainer = LearnWordsTrainer()
 
     var offset = 0
@@ -36,14 +35,13 @@ fun main(args: Array<String>) {
         println(updates)
 
         val lastUpdateMatch = updateIdRegex.findAll(updates).lastOrNull() ?: continue
-        val lastUpdateId = lastUpdateMatch.groupValues[1].toInt()
-        offset = lastUpdateId + 1
+        offset = lastUpdateMatch.groupValues[1].toInt() + 1
 
         val text = textRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
-        val messageChatId = messageChatIdRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
+        val messageChatId = messageChatIdRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)?.toInt()
 
         if (text == START_COMMAND && messageChatId != null) {
-            service.sendMenu(messageChatId)
+            service.sendMenu(messageChatId, CALLBACK_LEARN, CALLBACK_STATS)
             continue
         }
 
@@ -52,16 +50,14 @@ fun main(args: Array<String>) {
         }
 
         val data = dataRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
-        val callbackChatIdString = callbackChatIdRegex.find(updates)?.groupValues?.get(1)
+        val callbackChatId = callbackChatIdRegex.find(updates)?.groupValues?.get(1)?.toInt()
 
-        if (data != null && callbackChatIdString != null) {
-            val callbackChatId = callbackChatIdString.toInt()
-
+        if (data != null && callbackChatId != null) {
             when (data) {
                 CALLBACK_STATS -> {
                     val stats = trainer.getStatistics()
                     val message = "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
-                    service.sendMessage(callbackChatIdString, message)
+                    service.sendMessage(callbackChatId, message)
                 }
 
                 CALLBACK_LEARN -> {
@@ -69,7 +65,7 @@ fun main(args: Array<String>) {
                 }
 
                 else -> {
-                    service.sendMessage(callbackChatIdString, "Неизвестная команда: $data")
+                    service.sendMessage(callbackChatId, "Неизвестная команда: $data")
                 }
             }
         }
@@ -84,7 +80,7 @@ fun checkNextQuestionAndSend(
     val question: Question? = trainer.getNextQuestion()
 
     if (question == null) {
-        telegramBotService.sendMessage(chatId.toString(), "Все слова в словаре выучены")
+        telegramBotService.sendMessage(chatId, "Все слова в словаре выучены")
         return
     }
 
