@@ -1,5 +1,6 @@
 package telegram
 
+import model.Question
 import trainer.LearnWordsTrainer
 
 private const val START_COMMAND = "/start"
@@ -13,6 +14,7 @@ fun main(args: Array<String>) {
         ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
 
     val service = TelegramBotService(token)
+
     val trainer = LearnWordsTrainer()
 
     var offset = 0
@@ -23,9 +25,8 @@ fun main(args: Array<String>) {
 
     val dataRegex = "\"data\"\\s*:\\s*\"(.+?)\"".toRegex()
     val callbackChatIdRegex =
-        "\"callback_query\"\\s*:\\s*\\{.*?\"message\"\\s*:\\s*\\{.*?\"chat\"\\s*:\\s*\\{.*?\"id\"\\s*:\\s*(-?\\d+)".toRegex(
-            setOf(RegexOption.DOT_MATCHES_ALL)
-        )
+        "\"callback_query\"\\s*:\\s*\\{.*?\"message\"\\s*:\\s*\\{.*?\"chat\"\\s*:\\s*\\{.*?\"id\"\\s*:\\s*(-?\\d+)"
+            .toRegex(setOf(RegexOption.DOT_MATCHES_ALL))
 
     while (true) {
         Thread.sleep(2000)
@@ -34,11 +35,10 @@ fun main(args: Array<String>) {
         println(updates)
 
         val lastUpdateMatch = updateIdRegex.findAll(updates).lastOrNull() ?: continue
-        val lastUpdateId = lastUpdateMatch.groupValues[1].toInt()
-        offset = lastUpdateId + 1
+        offset = lastUpdateMatch.groupValues[1].toInt() + 1
 
         val text = textRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
-        val messageChatId = messageChatIdRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
+        val messageChatId = messageChatIdRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)?.toInt()
 
         if (text == START_COMMAND && messageChatId != null) {
             service.sendMenu(messageChatId, CALLBACK_LEARN, CALLBACK_STATS)
@@ -50,20 +50,39 @@ fun main(args: Array<String>) {
         }
 
         val data = dataRegex.findAll(updates).lastOrNull()?.groupValues?.get(1)
-        val callbackChatId = callbackChatIdRegex.find(updates)?.groupValues?.get(1)
+        val callbackChatId = callbackChatIdRegex.find(updates)?.groupValues?.get(1)?.toInt()
 
         if (data != null && callbackChatId != null) {
             when (data) {
-                CALLBACK_LEARN -> service.sendMessage(callbackChatId, trainer.start())
-
                 CALLBACK_STATS -> {
                     val stats = trainer.getStatistics()
                     val message = "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
                     service.sendMessage(callbackChatId, message)
                 }
 
-                else -> service.sendMessage(callbackChatId, "Неизвестная кнопка: $data")
+                CALLBACK_LEARN -> {
+                    checkNextQuestionAndSend(trainer, service, callbackChatId)
+                }
+
+                else -> {
+                    service.sendMessage(callbackChatId, "Неизвестная команда: $data")
+                }
             }
         }
     }
+}
+
+fun checkNextQuestionAndSend(
+    trainer: LearnWordsTrainer,
+    telegramBotService: TelegramBotService,
+    chatId: Int
+) {
+    val question: Question? = trainer.getNextQuestion()
+
+    if (question == null) {
+        telegramBotService.sendMessage(chatId, "Все слова в словаре выучены")
+        return
+    }
+
+    telegramBotService.sendQuestion(chatId, question)
 }
