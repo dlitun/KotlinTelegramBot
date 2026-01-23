@@ -5,25 +5,26 @@ import domain.WordTrainer
 import model.Question
 import model.Statistics
 
+private const val WORDS_FILE_PATH = "src/main/resources/words.txt"
+private const val MIN_CORRECT_ANSWERS = 3
+
 class LearnWordsTrainer(
-    private val filePath: String = "src/main/resources/words.txt",
-    private val learnedAnswerCount: Int = 3
+    private val repository: DictionaryRepository = DictionaryRepository(WORDS_FILE_PATH),
+    private val minCorrect: Int = MIN_CORRECT_ANSWERS
 ) {
-    private val repository = DictionaryRepository(filePath)
+    private val dictionary: List<Word> = repository.load()
 
-    private val dictionary: MutableList<Word> = repository.load().toMutableList()
-
-    private val wordTrainer = WordTrainer(
+    private val wordTrainer: WordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
-        minCorrect = learnedAnswerCount
+        minCorrect = minCorrect
     )
 
-    fun start(): String = "Начинаем изучение слов"
+    private var currentQuestion: Question? = null
 
     fun getStatistics(): Statistics {
         val totalCount = dictionary.size
-        val learnedCount = dictionary.count { it.correctAnswersCount >= learnedAnswerCount }
+        val learnedCount = dictionary.count { it.correctAnswersCount >= minCorrect }
         val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
 
         return Statistics(
@@ -34,11 +35,22 @@ class LearnWordsTrainer(
     }
 
     fun getNextQuestion(): Question? {
-        if (!wordTrainer.hasUnlearnedWords()) return null
-        return wordTrainer.createQuestion()
+        if (!wordTrainer.hasUnlearnedWords()) {
+            currentQuestion = null
+            return null
+        }
+
+        val question = wordTrainer.createQuestion()
+        currentQuestion = question
+        return question
     }
 
-    fun checkAnswer(question: Question, answerIndex: Int): Boolean {
-        return wordTrainer.checkAnswer(question, answerIndex)
+    fun checkAnswer(userAnswerIndex: Int): Boolean {
+        val question = currentQuestion ?: return false
+        return wordTrainer.checkAnswer(question, userAnswerIndex)
+    }
+
+    fun getCorrectWordForCurrentQuestion(): Word? {
+        return currentQuestion?.questionWord
     }
 }
