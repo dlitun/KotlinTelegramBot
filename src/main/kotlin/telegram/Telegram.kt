@@ -9,12 +9,13 @@ private const val HELLO_TEXT = "Hello"
 private const val CALLBACK_LEARN = "learn_words_clicked"
 private const val CALLBACK_STATS = "statistics_clicked"
 
+private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
+
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
         ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
 
     val service = TelegramBotService(token)
-
     val trainer = LearnWordsTrainer()
 
     var offset = 0
@@ -53,15 +54,42 @@ fun main(args: Array<String>) {
         val callbackChatId = callbackChatIdRegex.find(updates)?.groupValues?.get(1)?.toInt()
 
         if (data != null && callbackChatId != null) {
-            when (data) {
-                CALLBACK_STATS -> {
+            when {
+                data == CALLBACK_STATS -> {
                     val stats = trainer.getStatistics()
                     val message = "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
                     service.sendMessage(callbackChatId, message)
                 }
 
-                CALLBACK_LEARN -> {
+                data == CALLBACK_LEARN -> {
                     checkNextQuestionAndSend(trainer, service, callbackChatId)
+                }
+
+                data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
+                    val indexString = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX)
+                    val userAnswerIndex = indexString.toIntOrNull()
+
+                    if (userAnswerIndex == null) {
+                        service.sendMessage(callbackChatId, "Некорректный ответ: $data")
+                    } else {
+                        val isCorrect = trainer.checkAnswer(userAnswerIndex)
+
+                        if (isCorrect) {
+                            service.sendMessage(callbackChatId, "Правильно!")
+                        } else {
+                            val correctWord = trainer.getCorrectWordForCurrentQuestion()
+                            if (correctWord != null) {
+                                service.sendMessage(
+                                    callbackChatId,
+                                    "Неправильно! ${correctWord.original} – это ${correctWord.translate}"
+                                )
+                            } else {
+                                service.sendMessage(callbackChatId, "Неправильно!")
+                            }
+                        }
+
+                        checkNextQuestionAndSend(trainer, service, callbackChatId)
+                    }
                 }
 
                 else -> {
