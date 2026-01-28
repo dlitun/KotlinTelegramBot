@@ -3,7 +3,12 @@ package telegram
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import model.*
+import model.ApiResponse
+import model.Update
+import model.Question
+import model.SendMessageRequest
+import model.InlineKeyboard
+import model.InlineKeyboardButton
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
