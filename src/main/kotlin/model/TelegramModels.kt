@@ -34,3 +34,25 @@ data class CallbackQuery(
     val data: String? = null,
     val message: Message? = null
 )
+
+@Serializable
+data class SendMessageRequest(
+    @SerialName("chat_id")
+    val chatId: Long,
+    val text: String,
+    @SerialName("reply_markup")
+    val replyMarkup: InlineKeyboard? = null
+)
+
+@Serializable
+data class InlineKeyboard(
+    @SerialName("inline_keyboard")
+    val inlineKeyboard: List<List<InlineKeyboardButton>>
+)
+
+@Serializable
+data class InlineKeyboardButton(
+    val text: String,
+    @SerialName("callback_data")
+    val callbackData: String
+)
