@@ -12,15 +12,13 @@ class LearnWordsTrainer(
     private val repository: DictionaryRepository = DictionaryRepository(WORDS_FILE_PATH),
     private val minCorrect: Int = MIN_CORRECT_ANSWERS
 ) {
-    private val dictionary: List<Word> = repository.load()
+    private val dictionary: MutableList<Word> = repository.load()
 
     private val wordTrainer: WordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
         minCorrect = minCorrect
     )
-
-    private var currentQuestion: Question? = null
 
     fun getStatistics(): Statistics {
         val totalCount = dictionary.size
@@ -34,23 +32,9 @@ class LearnWordsTrainer(
         )
     }
 
-    fun getNextQuestion(): Question? {
-        if (!wordTrainer.hasUnlearnedWords()) {
-            currentQuestion = null
-            return null
-        }
+    fun getNextQuestion(): Question? = wordTrainer.getNextQuestion()
 
-        val question = wordTrainer.createQuestion()
-        currentQuestion = question
-        return question
-    }
+    fun checkAnswer(userAnswerIndex: Int): Boolean = wordTrainer.checkAnswer(userAnswerIndex)
 
-    fun checkAnswer(userAnswerIndex: Int): Boolean {
-        val question = currentQuestion ?: return false
-        return wordTrainer.checkAnswer(question, userAnswerIndex)
-    }
-
-    fun getCorrectWordForCurrentQuestion(): Word? {
-        return currentQuestion?.questionWord
-    }
+    fun getCorrectWordForCurrentQuestion(): Word? = wordTrainer.getCurrentCorrectWord()
 }

@@ -2,13 +2,16 @@ package domain
 
 import data.DictionaryRepository
 import model.Question
+import model.Statistics
 import trainer.Word
 
 class WordTrainer(
-    private val dictionary: List<Word>,
+    private val dictionary: MutableList<Word>,
     private val repository: DictionaryRepository,
     private val minCorrect: Int
 ) {
+    private var currentQuestion: Question? = null
+
     fun hasUnlearnedWords(): Boolean =
         dictionary.any { it.correctAnswersCount < minCorrect }
 
@@ -22,10 +25,34 @@ class WordTrainer(
         return Question(correct, options)
     }
 
-    fun checkAnswer(question: Question, answerIndex: Int): Boolean {
-        val isCorrect = answerIndex == question.correctOptionIndex
-        if (isCorrect) incrementCorrectAnswer(question.questionWord)
+    fun getNextQuestion(): Question? {
+        if (!hasUnlearnedWords()) {
+            currentQuestion = null
+            return null
+        }
+        currentQuestion = createQuestion()
+        return currentQuestion
+    }
+
+    fun checkAnswer(answerIndex: Int): Boolean {
+        val q = currentQuestion ?: return false
+        val isCorrect = answerIndex == q.correctOptionIndex
+        if (isCorrect) incrementCorrectAnswer(q.questionWord)
         return isCorrect
+    }
+
+    fun getCurrentCorrectWord(): Word? = currentQuestion?.questionWord
+
+    fun getStatistics(): Statistics {
+        val totalCount = dictionary.size
+        val learnedCount = dictionary.count { it.correctAnswersCount >= minCorrect }
+        val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
+
+        return Statistics(
+            totalCount = totalCount,
+            learnedCount = learnedCount,
+            percent = percent
+        )
     }
 
     private fun incrementCorrectAnswer(word: Word) {

@@ -53,23 +53,44 @@ class TelegramBotService(private val token: String) {
         )
     }
 
-    fun sendMenu(chatId: Long, callbackLearn: String, callbackStats: String): String {
-        val markup = InlineKeyboard(
-            inlineKeyboard = listOf(
-                listOf(
-                    InlineKeyboardButton(text = "Изучить слова", callbackData = callbackLearn),
-                    InlineKeyboardButton(text = "Статистика", callbackData = callbackStats)
-                )
-            )
-        )
+    fun sendMenu(
+        chatId: Long,
+        callbackLearn: String,
+        callbackStats: String,
+        callbackReset: String
+    ): String {
+        val url = "${BASE_URL}$token/sendMessage"
 
-        return postSendMessage(
-            SendMessageRequest(
-                chatId = chatId,
-                text = "Основное меню",
-                replyMarkup = markup
-            )
-        )
+        val jsonBody = """
+        {
+          "chat_id": $chatId,
+          "text": "Основное меню",
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                { "text": "Изучить слова", "callback_data": "$callbackLearn" }
+              ],
+              [
+                { "text": "Статистика", "callback_data": "$callbackStats" }
+              ],
+              [
+                { "text": "Сбросить прогресс", "callback_data": "$callbackReset" }
+              ]
+            ]
+          }
+        }
+    """.trimIndent()
+
+        val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            response.body?.string() ?: ""
+        }
     }
 
     fun sendQuestion(chatId: Long, question: Question): String {
