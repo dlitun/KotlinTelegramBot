@@ -1,7 +1,6 @@
 package trainer
 
 import data.DictionaryRepository
-import domain.WordTrainer
 import java.io.File
 
 class UserTrainerManager(
@@ -9,14 +8,13 @@ class UserTrainerManager(
     private val usersDirPath: String,
     private val minCorrect: Int = 3
 ) {
-    private val trainers = mutableMapOf<Long, WordTrainer>()
+    private val trainers = mutableMapOf<Long, LearnWordsTrainer>()
 
-    fun getTrainer(chatId: Long): WordTrainer {
+    fun getTrainer(chatId: Long): LearnWordsTrainer {
         return trainers.getOrPut(chatId) {
             val userFile = ensureUserDictionaryFile(chatId)
             val repo = DictionaryRepository(userFile.absolutePath)
-            val dictionary = repo.load() // уже с прогрессом этого юзера
-            WordTrainer(dictionary, repo, minCorrect)
+            LearnWordsTrainer(repository = repo, minCorrect = minCorrect)
         }
     }
 
@@ -24,7 +22,6 @@ class UserTrainerManager(
         val userFile = ensureUserDictionaryFile(chatId)
         val repo = DictionaryRepository(userFile.absolutePath)
         repo.resetProgress()
-
         trainers.remove(chatId)
     }
 

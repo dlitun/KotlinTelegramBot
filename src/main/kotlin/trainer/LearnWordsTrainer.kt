@@ -5,20 +5,19 @@ import domain.WordTrainer
 import model.Question
 import model.Statistics
 
-private const val WORDS_FILE_PATH = "src/main/resources/words.txt"
-private const val MIN_CORRECT_ANSWERS = 3
-
 class LearnWordsTrainer(
-    private val repository: DictionaryRepository = DictionaryRepository(WORDS_FILE_PATH),
-    private val minCorrect: Int = MIN_CORRECT_ANSWERS
+    private val repository: DictionaryRepository,
+    private val minCorrect: Int = 3
 ) {
     private val dictionary: MutableList<Word> = repository.load()
 
-    private val wordTrainer: WordTrainer = WordTrainer(
+    private val wordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
         minCorrect = minCorrect
     )
+
+    private var currentQuestion: Question? = null
 
     fun getStatistics(): Statistics {
         val totalCount = dictionary.size
@@ -32,9 +31,20 @@ class LearnWordsTrainer(
         )
     }
 
-    fun getNextQuestion(): Question? = wordTrainer.getNextQuestion()
+    fun getNextQuestion(): Question? {
+        if (!wordTrainer.hasUnlearnedWords()) {
+            currentQuestion = null
+            return null
+        }
+        val q = wordTrainer.createQuestion()
+        currentQuestion = q
+        return q
+    }
 
-    fun checkAnswer(userAnswerIndex: Int): Boolean = wordTrainer.checkAnswer(userAnswerIndex)
+    fun checkAnswer(answerIndex: Int): Boolean {
+        val q = currentQuestion ?: return false
+        return wordTrainer.checkAnswer(q, answerIndex)
+    }
 
-    fun getCorrectWordForCurrentQuestion(): Word? = wordTrainer.getCurrentCorrectWord()
+    fun getCurrentCorrectWord(): Word? = currentQuestion?.questionWord
 }
