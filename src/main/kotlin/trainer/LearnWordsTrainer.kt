@@ -17,37 +17,19 @@ class LearnWordsTrainer(
         minCorrect = minCorrect
     )
 
-    private var currentQuestion: Question? = null
-
     fun getStatistics(): Statistics {
-        val totalCount = dictionary.size
-        val learnedCount = dictionary.count { it.correctAnswersCount >= minCorrect }
-        val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
-
-        return Statistics(
-            totalCount = totalCount,
-            learnedCount = learnedCount,
-            percent = percent
-        )
+        return wordTrainer.getStatistics()
     }
 
     fun getNextQuestion(): Question? {
-        if (!wordTrainer.hasUnlearnedWords()) {
-            currentQuestion = null
-            return null
-        }
-
-        val question = wordTrainer.createQuestion()
-        currentQuestion = question
-        return question
+        return wordTrainer.getNextQuestion()
     }
 
     fun checkAnswer(answerIndex: Int): Boolean {
-        val question = currentQuestion ?: return false
-        return wordTrainer.checkAnswer(question, answerIndex)
+        return wordTrainer.checkAnswer(answerIndex)
     }
 
     fun getCurrentCorrectWord(): Word? {
-        return currentQuestion?.questionWord
+        return wordTrainer.getCurrentCorrectWord()
     }
 }
