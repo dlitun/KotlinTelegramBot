@@ -11,7 +11,7 @@ class LearnWordsTrainer(
 ) {
     private val dictionary: MutableList<Word> = repository.load()
 
-    private val wordTrainer = WordTrainer(
+    private val wordTrainer: WordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
         minCorrect = minCorrect
@@ -36,15 +36,18 @@ class LearnWordsTrainer(
             currentQuestion = null
             return null
         }
-        val q = wordTrainer.createQuestion()
-        currentQuestion = q
-        return q
+
+        val question = wordTrainer.createQuestion()
+        currentQuestion = question
+        return question
     }
 
     fun checkAnswer(answerIndex: Int): Boolean {
-        val q = currentQuestion ?: return false
-        return wordTrainer.checkAnswer(q, answerIndex)
+        val question = currentQuestion ?: return false
+        return wordTrainer.checkAnswer(question, answerIndex)
     }
 
-    fun getCurrentCorrectWord(): Word? = currentQuestion?.questionWord
+    fun getCurrentCorrectWord(): Word? {
+        return currentQuestion?.questionWord
+    }
 }

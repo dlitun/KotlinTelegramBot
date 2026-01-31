@@ -30,8 +30,8 @@ class DictionaryRepository(private val filePath: String) {
     }
 
     fun resetProgress() {
-        val current = load()
-        val cleared = current.map { it.copy(correctAnswersCount = 0) }
-        save(cleared)
+        val currentDictionary = load()
+        val clearedDictionary = currentDictionary.map { it.copy(correctAnswersCount = 0) }
+        save(clearedDictionary)
     }
 }

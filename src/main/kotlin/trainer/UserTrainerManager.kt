@@ -13,15 +13,15 @@ class UserTrainerManager(
     fun getTrainer(chatId: Long): LearnWordsTrainer {
         return trainers.getOrPut(chatId) {
             val userFile = ensureUserDictionaryFile(chatId)
-            val repo = DictionaryRepository(userFile.absolutePath)
-            LearnWordsTrainer(repository = repo, minCorrect = minCorrect)
+            val repository = DictionaryRepository(userFile.absolutePath)
+            LearnWordsTrainer(repository = repository, minCorrect = minCorrect)
         }
     }
 
     fun reset(chatId: Long) {
         val userFile = ensureUserDictionaryFile(chatId)
-        val repo = DictionaryRepository(userFile.absolutePath)
-        repo.resetProgress()
+        val repository = DictionaryRepository(userFile.absolutePath)
+        repository.resetProgress()
         trainers.remove(chatId)
     }
 
@@ -31,8 +31,8 @@ class UserTrainerManager(
 
         val userFile = File(dir, "words_$chatId.txt")
         if (!userFile.exists()) {
-            val base = File(baseWordsFilePath)
-            userFile.writeText(base.readText())
+            val baseFile = File(baseWordsFilePath)
+            userFile.writeText(baseFile.readText())
         }
         return userFile
     }
