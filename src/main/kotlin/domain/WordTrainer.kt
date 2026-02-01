@@ -15,33 +15,36 @@ class WordTrainer(
     fun hasUnlearnedWords(): Boolean =
         dictionary.any { it.correctAnswersCount < minCorrect }
 
-    fun createQuestion(): Question {
-        val notLearned = dictionary.filter { it.correctAnswersCount < minCorrect }
-        if (notLearned.isEmpty()) throw IllegalStateException("Нет слов для тренировки")
-
-        val options = notLearned.shuffled().take(4)
-        val correct = options.random()
-
-        return Question(correct, options)
-    }
-
     fun getNextQuestion(): Question? {
         if (!hasUnlearnedWords()) {
             currentQuestion = null
             return null
         }
+
         currentQuestion = createQuestion()
         return currentQuestion
     }
 
+    private fun createQuestion(): Question {
+        val notLearned = dictionary.filter { it.correctAnswersCount < minCorrect }
+        val options = notLearned.shuffled().take(4)
+        val correct = options.random()
+        return Question(correct, options)
+    }
+
     fun checkAnswer(answerIndex: Int): Boolean {
-        val q = currentQuestion ?: return false
-        val isCorrect = answerIndex == q.correctOptionIndex
-        if (isCorrect) incrementCorrectAnswer(q.questionWord)
+        val question = currentQuestion ?: return false
+        val isCorrect = answerIndex == question.correctOptionIndex
+
+        if (isCorrect) {
+            incrementCorrectAnswer(question.questionWord)
+        }
+
         return isCorrect
     }
 
-    fun getCurrentCorrectWord(): Word? = currentQuestion?.questionWord
+    fun getCurrentCorrectWord(): Word? =
+        currentQuestion?.questionWord
 
     fun getStatistics(): Statistics {
         val totalCount = dictionary.size

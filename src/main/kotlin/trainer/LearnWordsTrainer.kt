@@ -11,7 +11,7 @@ class LearnWordsTrainer(
 ) {
     private val dictionary: MutableList<Word> = repository.load()
 
-    private val wordTrainer: WordTrainer = WordTrainer(
+    private val wordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
         minCorrect = minCorrect
@@ -31,5 +31,9 @@ class LearnWordsTrainer(
 
     fun getCurrentCorrectWord(): Word? {
         return wordTrainer.getCurrentCorrectWord()
+    }
+
+    fun resetProgress() {
+        repository.resetProgress()
     }
 }

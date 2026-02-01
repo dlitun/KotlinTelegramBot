@@ -31,9 +31,9 @@ fun main(args: Array<String>) {
         if (updates.isEmpty()) continue
 
         offset = updates.maxOf { it.updateId } + 1
-        val lastUpdate = updates.last()
+        val last = updates.last()
 
-        lastUpdate.message?.let { message ->
+        last.message?.let { message ->
             val chatId = message.chat.id
             val text = message.text ?: ""
 
@@ -52,18 +52,18 @@ fun main(args: Array<String>) {
             }
         }
 
-        val callbackQuery = lastUpdate.callbackQuery ?: continue
-        val data = callbackQuery.data ?: continue
-        val chatId = callbackQuery.message?.chat?.id ?: continue
+        val callback = last.callbackQuery ?: continue
+        val data = callback.data ?: continue
+        val chatId = callback.message?.chat?.id ?: continue
 
         val trainer = trainerManager.getTrainer(chatId)
 
         when {
             data == CALLBACK_STATS -> {
                 val stats = trainer.getStatistics()
-                val message =
+                val msg =
                     "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
-                service.sendMessage(chatId, message)
+                service.sendMessage(chatId, msg)
             }
 
             data == CALLBACK_LEARN -> {
@@ -71,13 +71,14 @@ fun main(args: Array<String>) {
             }
 
             data == CALLBACK_RESET -> {
-                trainerManager.reset(chatId)
+                trainer.resetProgress()
                 service.sendMessage(chatId, "Прогресс сброшен ✅")
                 service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
             }
 
             data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
-                val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
+                val answerIndex =
+                    data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
 
                 if (answerIndex == null) {
                     service.sendMessage(chatId, "Некорректный ответ: $data")
@@ -87,13 +88,11 @@ fun main(args: Array<String>) {
                     if (isCorrect) {
                         service.sendMessage(chatId, "Правильно!")
                     } else {
-                        val correctWord = trainer.getCurrentCorrectWord()
-                        val message = if (correctWord != null) {
-                            "Неправильно! ${correctWord.original} – это ${correctWord.translate}"
-                        } else {
-                            "Неправильно!"
-                        }
-                        service.sendMessage(chatId, message)
+                        val word = trainer.getCurrentCorrectWord()
+                        val msg =
+                            if (word != null) "Неправильно! ${word.original} — это ${word.translate}"
+                            else "Неправильно!"
+                        service.sendMessage(chatId, msg)
                     }
 
                     checkNextQuestionAndSend(trainerManager, service, chatId)
