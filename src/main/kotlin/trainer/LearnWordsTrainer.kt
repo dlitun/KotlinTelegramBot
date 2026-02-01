@@ -5,52 +5,35 @@ import domain.WordTrainer
 import model.Question
 import model.Statistics
 
-private const val WORDS_FILE_PATH = "src/main/resources/words.txt"
-private const val MIN_CORRECT_ANSWERS = 3
-
 class LearnWordsTrainer(
-    private val repository: DictionaryRepository = DictionaryRepository(WORDS_FILE_PATH),
-    private val minCorrect: Int = MIN_CORRECT_ANSWERS
+    private val repository: DictionaryRepository,
+    private val minCorrect: Int = 3
 ) {
-    private val dictionary: List<Word> = repository.load()
+    private val dictionary: MutableList<Word> = repository.load()
 
-    private val wordTrainer: WordTrainer = WordTrainer(
+    private val wordTrainer = WordTrainer(
         dictionary = dictionary,
         repository = repository,
         minCorrect = minCorrect
     )
 
-    private var currentQuestion: Question? = null
-
     fun getStatistics(): Statistics {
-        val totalCount = dictionary.size
-        val learnedCount = dictionary.count { it.correctAnswersCount >= minCorrect }
-        val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
-
-        return Statistics(
-            totalCount = totalCount,
-            learnedCount = learnedCount,
-            percent = percent
-        )
+        return wordTrainer.getStatistics()
     }
 
     fun getNextQuestion(): Question? {
-        if (!wordTrainer.hasUnlearnedWords()) {
-            currentQuestion = null
-            return null
-        }
-
-        val question = wordTrainer.createQuestion()
-        currentQuestion = question
-        return question
+        return wordTrainer.getNextQuestion()
     }
 
-    fun checkAnswer(userAnswerIndex: Int): Boolean {
-        val question = currentQuestion ?: return false
-        return wordTrainer.checkAnswer(question, userAnswerIndex)
+    fun checkAnswer(answerIndex: Int): Boolean {
+        return wordTrainer.checkAnswer(answerIndex)
     }
 
-    fun getCorrectWordForCurrentQuestion(): Word? {
-        return currentQuestion?.questionWord
+    fun getCurrentCorrectWord(): Word? {
+        return wordTrainer.getCurrentCorrectWord()
+    }
+
+    fun resetProgress() {
+        repository.resetProgress()
     }
 }
