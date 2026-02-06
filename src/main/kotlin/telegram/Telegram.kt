@@ -17,7 +17,7 @@ fun main(args: Array<String>) {
     val service = TelegramBotService(token)
 
     val trainerManager = UserTrainerManager(
-        baseWordsFilePath = "src/main/resources/words.txt",
+        baseWordsFilePath = "words.txt",
         usersDirPath = "users",
         minCorrect = 3
     )
