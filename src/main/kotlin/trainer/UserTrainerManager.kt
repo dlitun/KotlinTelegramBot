@@ -19,10 +19,11 @@ class UserTrainerManager(
     }
 
     fun reset(chatId: Long) {
+        trainers.remove(chatId)
+
         val userFile = ensureUserDictionaryFile(chatId)
         val repository = DictionaryRepository(userFile.absolutePath)
         repository.resetProgress()
-        trainers.remove(chatId)
     }
 
     private fun ensureUserDictionaryFile(chatId: Long): File {
@@ -30,10 +31,15 @@ class UserTrainerManager(
         if (!dir.exists()) dir.mkdirs()
 
         val userFile = File(dir, "words_$chatId.txt")
+
         if (!userFile.exists()) {
             val baseFile = File(baseWordsFilePath)
             userFile.writeText(baseFile.readText())
+
+            val repo = DictionaryRepository(userFile.absolutePath)
+            repo.resetProgress()
         }
+
         return userFile
     }
 }
