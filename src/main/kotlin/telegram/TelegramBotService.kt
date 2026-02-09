@@ -7,9 +7,11 @@ import model.Question
 import model.Update
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 import kotlin.text.Charsets.UTF_8
 
 private const val BASE_URL = "https://api.telegram.org/bot"
@@ -17,39 +19,52 @@ private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 class TelegramBotService(private val token: String) {
 
-    private val okHttpClient = OkHttpClient()
+    private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(70, TimeUnit.SECONDS)
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .build()
 
     private val json = Json {
         ignoreUnknownKeys = true
     }
 
     fun getUpdates(offset: Long): List<Update> {
-        val url = "${BASE_URL}$token/getUpdates?offset=$offset"
-        val request = Request.Builder().url(url).get().build()
+        return try {
+            val url = "${BASE_URL}$token/getUpdates?offset=$offset&timeout=50"
+            val request = Request.Builder().url(url).get().build()
 
-        val bodyString = okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val bodyString = okHttpClient.newCall(request).execute().use {
+                it.body?.string() ?: ""
+            }
+
+            val apiResponse = json.decodeFromString(
+                ApiResponse.serializer(ListSerializer(Update.serializer())),
+                bodyString
+            )
+
+            apiResponse.result ?: emptyList()
+        } catch (e: Exception) {
+            println("getUpdates error: ${e.message}")
+            emptyList()
         }
-
-        val apiResponse = json.decodeFromString(
-            ApiResponse.serializer(ListSerializer(Update.serializer())),
-            bodyString
-        )
-
-        return apiResponse.result ?: emptyList()
     }
 
-    fun sendMessage(chatId: Long, text: String): String {
+    fun sendMessage(chatId: Long, text: String) {
         val encodedText = URLEncoder.encode(text, UTF_8)
         val url = "${BASE_URL}$token/sendMessage?chat_id=$chatId&text=$encodedText"
         val request = Request.Builder().url(url).get().build()
 
-        return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+        try {
+            okHttpClient.newCall(request).execute().close()
+        } catch (e: Exception) {
+            println("sendMessage error: ${e.message}")
         }
     }
 
-    fun sendMenu(chatId: Long, callbackLearn: String, callbackStats: String, callbackReset: String): String {
+    fun sendMenu(chatId: Long, callbackLearn: String, callbackStats: String, callbackReset: String) {
         val url = "${BASE_URL}$token/sendMessage"
 
         val jsonBody = """
@@ -71,12 +86,14 @@ class TelegramBotService(private val token: String) {
         val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
 
-        return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+        try {
+            okHttpClient.newCall(request).execute().close()
+        } catch (e: Exception) {
+            println("sendMenu error: ${e.message}")
         }
     }
 
-    fun sendQuestion(chatId: Long, question: Question): String {
+    fun sendQuestion(chatId: Long, question: Question) {
         val url = "${BASE_URL}$token/sendMessage"
 
         val buttonsJson = question.options
@@ -102,8 +119,29 @@ class TelegramBotService(private val token: String) {
         val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
 
-        return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+        try {
+            okHttpClient.newCall(request).execute().close()
+        } catch (e: Exception) {
+            println("sendQuestion error: ${e.message}")
+        }
+    }
+
+    fun answerCallback(callbackId: String) {
+        val url = "${BASE_URL}$token/answerCallbackQuery"
+
+        val jsonBody = """
+            {
+              "callback_query_id": "$callbackId"
+            }
+        """.trimIndent()
+
+        val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder().url(url).post(body).build()
+
+        try {
+            okHttpClient.newCall(request).execute().close()
+        } catch (e: Exception) {
+            println("answerCallback error: ${e.message}")
         }
     }
 }

@@ -25,7 +25,7 @@ class WordTrainer(
         return currentQuestion
     }
 
-    private fun createQuestion(): Question {
+    fun createQuestion(): Question {
         val notLearned = dictionary.filter { it.correctAnswersCount < minCorrect }
         val options = notLearned.shuffled().take(4)
         val correct = options.random()

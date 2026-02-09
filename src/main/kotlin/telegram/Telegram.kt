@@ -12,12 +12,12 @@ private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
-        ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
+        ?: error("Передай токен бота в аргументах запуска.")
 
     val service = TelegramBotService(token)
 
     val trainerManager = UserTrainerManager(
-        baseWordsFilePath = "src/main/resources/words.txt",
+        baseWordsFilePath = "words.txt",
         usersDirPath = "users",
         minCorrect = 3
     )
@@ -25,81 +25,84 @@ fun main(args: Array<String>) {
     var offset = 0L
 
     while (true) {
-        Thread.sleep(2000)
+        try {
+            Thread.sleep(300)
 
-        val updates = service.getUpdates(offset)
-        if (updates.isEmpty()) continue
+            val updates = service.getUpdates(offset)
+            if (updates.isEmpty()) continue
 
-        offset = updates.maxOf { it.updateId } + 1
-        val last = updates.last()
+            offset = updates.maxOf { it.updateId } + 1
 
-        last.message?.let { message ->
-            val chatId = message.chat.id
-            val text = message.text ?: ""
+            for (u in updates) {
 
-            when (text) {
-                START_COMMAND -> {
-                    service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                    return@let
+                u.message?.let { message ->
+                    val chatId = message.chat.id
+                    when (message.text) {
+                        START_COMMAND -> {
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
+
+                        RESET_COMMAND -> {
+                            trainerManager.reset(chatId)
+                            service.sendMessage(chatId, "Прогресс сброшен ✅")
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
+                    }
                 }
 
-                RESET_COMMAND -> {
-                    trainerManager.reset(chatId)
-                    service.sendMessage(chatId, "Прогресс сброшен ✅")
-                    service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                    return@let
-                }
-            }
-        }
+                val callback = u.callbackQuery ?: continue
+                service.answerCallback(callback.id!!)
 
-        val callback = last.callbackQuery ?: continue
-        val data = callback.data ?: continue
-        val chatId = callback.message?.chat?.id ?: continue
+                val data = callback.data ?: continue
+                val chatId = callback.message?.chat?.id ?: continue
 
-        val trainer = trainerManager.getTrainer(chatId)
+                val trainer = trainerManager.getTrainer(chatId)
 
-        when {
-            data == CALLBACK_STATS -> {
-                val stats = trainer.getStatistics()
-                val msg =
-                    "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
-                service.sendMessage(chatId, msg)
-            }
-
-            data == CALLBACK_LEARN -> {
-                checkNextQuestionAndSend(trainerManager, service, chatId)
-            }
-
-            data == CALLBACK_RESET -> {
-                trainer.resetProgress()
-                service.sendMessage(chatId, "Прогресс сброшен ✅")
-                service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-            }
-
-            data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
-                val answerIndex =
-                    data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
-
-                if (answerIndex == null) {
-                    service.sendMessage(chatId, "Некорректный ответ: $data")
-                } else {
-                    val isCorrect = trainer.checkAnswer(answerIndex)
-
-                    if (isCorrect) {
-                        service.sendMessage(chatId, "Правильно!")
-                    } else {
-                        val word = trainer.getCurrentCorrectWord()
-                        val msg =
-                            if (word != null) "Неправильно! ${word.original} — это ${word.translate}"
-                            else "Неправильно!"
-                        service.sendMessage(chatId, msg)
+                when {
+                    data == CALLBACK_STATS -> {
+                        val stats = trainer.getStatistics()
+                        service.sendMessage(
+                            chatId,
+                            "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
+                        )
                     }
 
-                    checkNextQuestionAndSend(trainerManager, service, chatId)
+                    data == CALLBACK_LEARN -> {
+                        checkNextQuestionAndSend(trainerManager, service, chatId)
+                    }
+
+                    data == CALLBACK_RESET -> {
+                        trainerManager.reset(chatId)
+                        service.sendMessage(chatId, "Прогресс сброшен ✅")
+                        service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                    }
+
+                    data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
+                        val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
+
+                        if (answerIndex == null) {
+                            service.sendMessage(chatId, "Некорректный ответ")
+                        } else {
+                            val isCorrect = trainer.checkAnswer(answerIndex)
+                            if (isCorrect) {
+                                service.sendMessage(chatId, "Правильно!")
+                            } else {
+                                val word = trainer.getCurrentCorrectWord()
+                                service.sendMessage(
+                                    chatId,
+                                    word?.let { "Неправильно! ${it.original} — это ${it.translate}" }
+                                        ?: "Неправильно!"
+                                )
+                            }
+                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                        }
+                    }
                 }
             }
 
-            else -> service.sendMessage(chatId, "Неизвестная команда: $data")
+        } catch (e: Exception) {
+            println("Main loop error: ${e.message}")
+            Thread.sleep(3000)
         }
     }
 }

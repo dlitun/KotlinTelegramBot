@@ -26,7 +26,7 @@ fun runStudyMode(trainer: WordTrainer) {
             return
         }
 
-        val isCorrect = trainer.checkAnswer(question, userAnswer - 1)
+        val isCorrect = trainer.checkAnswer(userAnswer - 1)
 
         if (isCorrect) {
             println("Правильно!\n")
