@@ -12,7 +12,7 @@ private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
-        ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
+        ?: error("Передай токен бота в аргументах запуска.")
 
     val service = TelegramBotService(token)
 
@@ -26,25 +26,18 @@ fun main(args: Array<String>) {
 
     while (true) {
         try {
-            // можно реже спать, т.к. у тебя long polling в getUpdates (timeout=50)
-            // но оставим маленькую паузу, чтобы не долбить в случае ошибок
             Thread.sleep(300)
 
             val updates = service.getUpdates(offset)
             if (updates.isEmpty()) continue
 
-            // ВАЖНО: сначала обновляем offset по максимуму
             offset = updates.maxOf { it.updateId } + 1
 
-            // ВАЖНО: обрабатываем КАЖДЫЙ апдейт, а не только последний
             for (u in updates) {
 
-                // 1) Текстовые сообщения (/start, /reset)
                 u.message?.let { message ->
                     val chatId = message.chat.id
-                    val text = message.text ?: ""
-
-                    when (text) {
+                    when (message.text) {
                         START_COMMAND -> {
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
@@ -54,16 +47,12 @@ fun main(args: Array<String>) {
                             service.sendMessage(chatId, "Прогресс сброшен ✅")
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
-
-                        else -> {
-                            // если хочешь — можешь отвечать на любые тексты
-                            // service.sendMessage(chatId, "Нажми кнопку в меню 👇")
-                        }
                     }
                 }
 
-                // 2) Callback-кнопки
                 val callback = u.callbackQuery ?: continue
+                service.answerCallback(callback.id!!)
+
                 val data = callback.data ?: continue
                 val chatId = callback.message?.chat?.id ?: continue
 
@@ -72,8 +61,10 @@ fun main(args: Array<String>) {
                 when {
                     data == CALLBACK_STATS -> {
                         val stats = trainer.getStatistics()
-                        val msg = "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
-                        service.sendMessage(chatId, msg)
+                        service.sendMessage(
+                            chatId,
+                            "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
+                        )
                     }
 
                     data == CALLBACK_LEARN -> {
@@ -90,25 +81,22 @@ fun main(args: Array<String>) {
                         val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
 
                         if (answerIndex == null) {
-                            service.sendMessage(chatId, "Некорректный ответ: $data")
+                            service.sendMessage(chatId, "Некорректный ответ")
                         } else {
                             val isCorrect = trainer.checkAnswer(answerIndex)
-
                             if (isCorrect) {
                                 service.sendMessage(chatId, "Правильно!")
                             } else {
                                 val word = trainer.getCurrentCorrectWord()
-                                val msg =
-                                    if (word != null) "Неправильно! ${word.original} — это ${word.translate}"
-                                    else "Неправильно!"
-                                service.sendMessage(chatId, msg)
+                                service.sendMessage(
+                                    chatId,
+                                    word?.let { "Неправильно! ${it.original} — это ${it.translate}" }
+                                        ?: "Неправильно!"
+                                )
                             }
-
                             checkNextQuestionAndSend(trainerManager, service, chatId)
                         }
                     }
-
-                    else -> service.sendMessage(chatId, "Неизвестная команда: $data")
                 }
             }
 
