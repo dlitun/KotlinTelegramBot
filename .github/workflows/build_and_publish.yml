@@ -1,5 +1,5 @@
 name: Build and Publish
-
+## KTB-24 Github Actions configured
 on:
   push:
     branches:
