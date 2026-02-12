@@ -37,15 +37,6 @@ jobs:
           source: bot.jar
           target: /root
 
-      - name: Deploy words.txt to VPS
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          source: words.txt
-          target: /root
-
       - name: Restart Remote Service
         uses: appleboy/ssh-action@master
         with:
