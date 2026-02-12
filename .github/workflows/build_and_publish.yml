@@ -3,7 +3,7 @@ name: Build and Publish
 on:
   push:
     branches:
-      - main  # имя основной ветки
+      - main
 
 jobs:
   build:
@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -19,11 +19,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Build with Gradle
-        run: ./gradlew shadowJar
+        run: ./gradlew build
 
       - name: Rename file
-        run: mv build/libs/EnglishWordsBot-1.0-SNAPSHOT-all.jar bot.jar
+        run: mv build/libs/*-all.jar bot.jar
 
       - name: Deploy jar to VPS
         uses: appleboy/scp-action@master
@@ -47,7 +50,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
-          username:  ${{ secrets.SSH_USER }}
+          username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            systemctl restart english-learning-bot
+            systemctl restart ktb-bot.service
