@@ -53,4 +53,4 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            systemctl restart ktb-bot.service
+            systemctl restart english-learning-bot.service
