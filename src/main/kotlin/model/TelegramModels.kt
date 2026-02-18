@@ -17,10 +17,20 @@ data class Update(
 )
 
 @Serializable
+data class Document(
+    @SerialName("file_name") val fileName: String,
+    @SerialName("mime_type") val mimeType: String,
+    @SerialName("file_id") val fileId: String,
+    @SerialName("file_unique_id") val fileUniqueId: String,
+    @SerialName("file_size") val fileSize: Long,
+)
+
+@Serializable
 data class Message(
     @SerialName("message_id") val messageId: Long? = null,
     val chat: Chat,
-    val text: String? = null
+    val text: String? = null,
+    val document: Document? = null
 )
 
 @Serializable
@@ -33,26 +43,4 @@ data class CallbackQuery(
     val id: String? = null,
     val data: String? = null,
     val message: Message? = null
-)
-
-@Serializable
-data class SendMessageRequest(
-    @SerialName("chat_id")
-    val chatId: Long,
-    val text: String,
-    @SerialName("reply_markup")
-    val replyMarkup: InlineKeyboard? = null
-)
-
-@Serializable
-data class InlineKeyboard(
-    @SerialName("inline_keyboard")
-    val inlineKeyboard: List<List<InlineKeyboardButton>>
-)
-
-@Serializable
-data class InlineKeyboardButton(
-    val text: String,
-    @SerialName("callback_data")
-    val callbackData: String
 )

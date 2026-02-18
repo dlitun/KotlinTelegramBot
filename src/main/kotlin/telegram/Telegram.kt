@@ -1,6 +1,9 @@
 package telegram
 
+import data.DictionaryRepository
 import trainer.UserTrainerManager
+import trainer.Word
+import java.io.File
 
 private const val START_COMMAND = "/start"
 private const val RESET_COMMAND = "/reset"
@@ -12,12 +15,12 @@ private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
 
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
-        ?: error("Передай токен бота в аргументах запуска.")
+        ?: error("Передай токен бота в Program arguments (Run/Debug Configuration).")
 
     val service = TelegramBotService(token)
 
     val trainerManager = UserTrainerManager(
-        baseWordsFilePath = "words.txt",
+        baseWordsFilePath = "src/main/resources/words.txt",
         usersDirPath = "users",
         minCorrect = 3
     )
@@ -25,46 +28,49 @@ fun main(args: Array<String>) {
     var offset = 0L
 
     while (true) {
-        try {
-            Thread.sleep(300)
+        Thread.sleep(2000)
 
-            val updates = service.getUpdates(offset)
-            if (updates.isEmpty()) continue
+        val updates = service.getUpdates(offset)
+        if (updates.isEmpty()) continue
+        offset = updates.maxOf { it.updateId } + 1
 
-            offset = updates.maxOf { it.updateId } + 1
+        for (update in updates) {
 
-            for (u in updates) {
+            update.message?.let { message ->
+                val chatId = message.chat.id
 
-                u.message?.let { message ->
-                    val chatId = message.chat.id
-                    when (message.text) {
-                        START_COMMAND -> {
-                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                        }
-
-                        RESET_COMMAND -> {
-                            trainerManager.reset(chatId)
-                            service.sendMessage(chatId, "Прогресс сброшен ✅")
-                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                        }
-                    }
+                val document = message.document
+                if (document != null) {
+                    handleDictionaryUpload(
+                        chatId = chatId,
+                        documentFileId = document.fileId,
+                        originalFileName = document.fileName,
+                        service = service,
+                        trainerManager = trainerManager
+                    )
+                    return@let
                 }
 
-                val callback = u.callbackQuery ?: continue
-                service.answerCallback(callback.id!!)
+                val text = message.text ?: return@let
+                when (text) {
+                    START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                    RESET_COMMAND -> {
+                        trainerManager.reset(chatId)
+                        service.sendMessage(chatId, "Прогресс сброшен ✅")
+                        service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                    }
+                }
+            }
 
-                val data = callback.data ?: continue
-                val chatId = callback.message?.chat?.id ?: continue
-
+            update.callbackQuery?.let { callback ->
+                val data = callback.data ?: return@let
+                val chatId = callback.message?.chat?.id ?: return@let
                 val trainer = trainerManager.getTrainer(chatId)
 
                 when {
                     data == CALLBACK_STATS -> {
                         val stats = trainer.getStatistics()
-                        service.sendMessage(
-                            chatId,
-                            "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
-                        )
+                        service.sendMessage(chatId, "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%")
                     }
 
                     data == CALLBACK_LEARN -> {
@@ -79,32 +85,100 @@ fun main(args: Array<String>) {
 
                     data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
                         val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
-
                         if (answerIndex == null) {
-                            service.sendMessage(chatId, "Некорректный ответ")
-                        } else {
-                            val isCorrect = trainer.checkAnswer(answerIndex)
-                            if (isCorrect) {
-                                service.sendMessage(chatId, "Правильно!")
-                            } else {
-                                val word = trainer.getCurrentCorrectWord()
-                                service.sendMessage(
-                                    chatId,
-                                    word?.let { "Неправильно! ${it.original} — это ${it.translate}" }
-                                        ?: "Неправильно!"
-                                )
-                            }
-                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                            service.sendMessage(chatId, "Некорректный ответ: $data")
+                            return@let
                         }
+
+                        val isCorrect = trainer.checkAnswer(answerIndex)
+                        if (isCorrect) {
+                            service.sendMessage(chatId, "Правильно!")
+                        } else {
+                            val correctWord = trainer.getCurrentCorrectWord()
+                            service.sendMessage(
+                                chatId,
+                                if (correctWord != null) "Неправильно! ${correctWord.original} – это ${correctWord.translate}" else "Неправильно!"
+                            )
+                        }
+
+                        checkNextQuestionAndSend(trainerManager, service, chatId)
                     }
+
+                    else -> service.sendMessage(chatId, "Неизвестная команда: $data")
                 }
             }
-
-        } catch (e: Exception) {
-            println("Main loop error: ${e.message}")
-            Thread.sleep(3000)
         }
     }
+}
+
+private fun handleDictionaryUpload(
+    chatId: Long,
+    documentFileId: String,
+    originalFileName: String,
+    service: TelegramBotService,
+    trainerManager: UserTrainerManager
+) {
+    service.sendMessage(chatId, "Файл получен: $originalFileName. Скачиваю...")
+
+    val filePath = service.getFilePath(documentFileId)
+    if (filePath == null) {
+        service.sendMessage(chatId, "Не смог получить file_path 😕")
+        return
+    }
+
+    val downloadsDir = File("downloads").apply { if (!exists()) mkdirs() }
+    val downloadedFile = File(downloadsDir, "chat_${chatId}_$originalFileName")
+
+    service.downloadFile(filePath, downloadedFile.absolutePath)
+
+    val added = mergeWordsIntoUserDictionary(chatId, downloadedFile, trainerManager)
+
+    service.sendMessage(chatId, "Готово ✅ Добавлено слов: $added")
+}
+
+private fun mergeWordsIntoUserDictionary(
+    chatId: Long,
+    dictionaryFile: File,
+    trainerManager: UserTrainerManager
+): Int {
+    val userFile = File("users", "words_$chatId.txt")
+    if (!userFile.exists()) {
+        trainerManager.getTrainer(chatId)
+    }
+
+    val repo = DictionaryRepository(userFile.absolutePath)
+    val current = repo.load()
+
+    val existingKeys = current
+        .map { "${it.original}|${it.translate}" }
+        .toHashSet()
+
+    var added = 0
+
+    dictionaryFile.readLines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .forEach { line ->
+            val parts = line.split("|")
+            if (parts.size < 2) return@forEach
+
+            val original = parts[0].trim()
+            val translate = parts[1].trim()
+            if (original.isBlank() || translate.isBlank()) return@forEach
+
+            val key = "$original|$translate"
+            if (existingKeys.contains(key)) return@forEach
+
+            current.add(Word(original = original, translate = translate, correctAnswersCount = 0))
+            existingKeys.add(key)
+            added++
+        }
+
+    repo.save(current)
+
+    trainerManager.reset(chatId)
+
+    return added
 }
 
 fun checkNextQuestionAndSend(
