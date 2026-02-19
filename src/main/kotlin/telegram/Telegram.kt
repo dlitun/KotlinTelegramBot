@@ -28,85 +28,100 @@ fun main(args: Array<String>) {
     var offset = 0L
 
     while (true) {
-        Thread.sleep(2000)
+        try {
+            Thread.sleep(2000)
 
-        val updates = service.getUpdates(offset)
-        if (updates.isEmpty()) continue
-        offset = updates.maxOf { it.updateId } + 1
+            val updates = service.getUpdates(offset)
+            if (updates.isEmpty()) continue
+            offset = updates.maxOf { it.updateId } + 1
 
-        for (update in updates) {
+            for (update in updates) {
 
-            update.message?.let { message ->
-                val chatId = message.chat.id
+                update.message?.let { message ->
+                    val chatId = message.chat.id
 
-                val document = message.document
-                if (document != null) {
-                    handleDictionaryUpload(
-                        chatId = chatId,
-                        documentFileId = document.fileId,
-                        originalFileName = document.fileName,
-                        service = service,
-                        trainerManager = trainerManager
-                    )
-                    return@let
-                }
-
-                val text = message.text ?: return@let
-                when (text) {
-                    START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                    RESET_COMMAND -> {
-                        trainerManager.reset(chatId)
-                        service.sendMessage(chatId, "Прогресс сброшен ✅")
-                        service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                    }
-                }
-            }
-
-            update.callbackQuery?.let { callback ->
-                val data = callback.data ?: return@let
-                val chatId = callback.message?.chat?.id ?: return@let
-                val trainer = trainerManager.getTrainer(chatId)
-
-                when {
-                    data == CALLBACK_STATS -> {
-                        val stats = trainer.getStatistics()
-                        service.sendMessage(chatId, "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%")
+                    val document = message.document
+                    if (document != null) {
+                        handleDictionaryUpload(
+                            chatId = chatId,
+                            documentFileId = document.fileId,
+                            originalFileName = document.fileName,
+                            service = service,
+                            trainerManager = trainerManager
+                        )
+                        return@let
                     }
 
-                    data == CALLBACK_LEARN -> {
-                        checkNextQuestionAndSend(trainerManager, service, chatId)
-                    }
-
-                    data == CALLBACK_RESET -> {
-                        trainerManager.reset(chatId)
-                        service.sendMessage(chatId, "Прогресс сброшен ✅")
-                        service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
-                    }
-
-                    data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
-                        val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
-                        if (answerIndex == null) {
-                            service.sendMessage(chatId, "Некорректный ответ: $data")
-                            return@let
+                    val text = message.text ?: return@let
+                    when (text) {
+                        START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        RESET_COMMAND -> {
+                            trainerManager.reset(chatId)
+                            service.sendMessage(chatId, "Прогресс сброшен ✅")
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
+                    }
+                }
 
-                        val isCorrect = trainer.checkAnswer(answerIndex)
-                        if (isCorrect) {
-                            service.sendMessage(chatId, "Правильно!")
-                        } else {
-                            val correctWord = trainer.getCurrentCorrectWord()
+                update.callbackQuery?.let { callback ->
+                    val data = callback.data ?: return@let
+                    val chatId = callback.message?.chat?.id ?: return@let
+                    val trainer = trainerManager.getTrainer(chatId)
+
+                    when {
+                        data == CALLBACK_STATS -> {
+                            val stats = trainer.getStatistics()
                             service.sendMessage(
                                 chatId,
-                                if (correctWord != null) "Неправильно! ${correctWord.original} – это ${correctWord.translate}" else "Неправильно!"
+                                "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
                             )
                         }
 
-                        checkNextQuestionAndSend(trainerManager, service, chatId)
+                        data == CALLBACK_LEARN -> {
+                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                        }
+
+                        data == CALLBACK_RESET -> {
+                            trainerManager.reset(chatId)
+                            service.sendMessage(chatId, "Прогресс сброшен ✅")
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
+
+                        data.startsWith(CALLBACK_DATA_ANSWER_PREFIX) -> {
+                            val answerIndex = data.substringAfter(CALLBACK_DATA_ANSWER_PREFIX).toIntOrNull()
+                            if (answerIndex == null) {
+                                service.sendMessage(chatId, "Некорректный ответ: $data")
+                                return@let
+                            }
+
+                            val isCorrect = trainer.checkAnswer(answerIndex)
+                            if (isCorrect) {
+                                service.sendMessage(chatId, "Правильно!")
+                            } else {
+                                val correctWord = trainer.getCurrentCorrectWord()
+                                service.sendMessage(
+                                    chatId,
+                                    if (correctWord != null) {
+                                        "Неправильно! ${correctWord.original} – это ${correctWord.translate}"
+                                    } else {
+                                        "Неправильно!"
+                                    }
+                                )
+                            }
+
+                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                        }
+
+                        else -> service.sendMessage(chatId, "Неизвестная команда: $data")
                     }
 
-                    else -> service.sendMessage(chatId, "Неизвестная команда: $data")
+                    callback.id?.let { callbackId ->
+                        service.answerCallbackQuery(callbackId)
+                    }
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
@@ -175,8 +190,6 @@ private fun mergeWordsIntoUserDictionary(
         }
 
     repo.save(current)
-
-    trainerManager.reset(chatId)
 
     return added
 }

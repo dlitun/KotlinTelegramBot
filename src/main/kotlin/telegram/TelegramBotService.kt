@@ -43,7 +43,7 @@ class TelegramBotService(private val token: String) {
 
     private val okHttpClient = OkHttpClient()
 
-    val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true }
 
     fun getUpdates(offset: Long): List<Update> {
         val url = "${BOT_URL}$token/getUpdates?offset=$offset"
@@ -70,7 +70,12 @@ class TelegramBotService(private val token: String) {
         }
     }
 
-    fun sendMenu(chatId: Long, callbackLearn: String, callbackStats: String, callbackReset: String): String {
+    fun sendMenu(
+        chatId: Long,
+        callbackLearn: String,
+        callbackStats: String,
+        callbackReset: String
+    ): String {
         val url = "${BOT_URL}$token/sendMessage"
 
         val jsonBody = """
@@ -160,5 +165,20 @@ class TelegramBotService(private val token: String) {
             val bytes = response.body?.bytes() ?: error("empty file body")
             File(saveAs).writeBytes(bytes)
         }
+    }
+
+    fun answerCallbackQuery(callbackQueryId: String) {
+        val url = "${BOT_URL}$token/answerCallbackQuery"
+
+        val jsonBody = """
+            {
+              "callback_query_id": "$callbackQueryId"
+            }
+        """.trimIndent()
+
+        val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder().url(url).post(body).build()
+
+        okHttpClient.newCall(request).execute().use { /* просто закрываем */ }
     }
 }
