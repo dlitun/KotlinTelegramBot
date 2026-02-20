@@ -45,6 +45,7 @@ fun main(args: Array<String>) {
                         handleDictionaryUpload(
                             chatId = chatId,
                             documentFileId = document.fileId,
+                            documentUniqueId = document.fileUniqueId,
                             originalFileName = document.fileName,
                             service = service,
                             trainerManager = trainerManager
@@ -55,6 +56,7 @@ fun main(args: Array<String>) {
                     val text = message.text ?: return@let
                     when (text) {
                         START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+
                         RESET_COMMAND -> {
                             trainerManager.reset(chatId)
                             service.sendMessage(chatId, "Прогресс сброшен ✅")
@@ -64,6 +66,10 @@ fun main(args: Array<String>) {
                 }
 
                 update.callbackQuery?.let { callback ->
+                    val callbackId = callback.id ?: return@let
+
+                    service.answerCallbackQuery(callbackId)
+
                     val data = callback.data ?: return@let
                     val chatId = callback.message?.chat?.id ?: return@let
                     val trainer = trainerManager.getTrainer(chatId)
@@ -101,11 +107,10 @@ fun main(args: Array<String>) {
                                 val correctWord = trainer.getCurrentCorrectWord()
                                 service.sendMessage(
                                     chatId,
-                                    if (correctWord != null) {
+                                    if (correctWord != null)
                                         "Неправильно! ${correctWord.original} – это ${correctWord.translate}"
-                                    } else {
+                                    else
                                         "Неправильно!"
-                                    }
                                 )
                             }
 
@@ -113,10 +118,6 @@ fun main(args: Array<String>) {
                         }
 
                         else -> service.sendMessage(chatId, "Неизвестная команда: $data")
-                    }
-
-                    callback.id?.let { callbackId ->
-                        service.answerCallbackQuery(callbackId)
                     }
                 }
             }
@@ -129,6 +130,7 @@ fun main(args: Array<String>) {
 private fun handleDictionaryUpload(
     chatId: Long,
     documentFileId: String,
+    documentUniqueId: String,
     originalFileName: String,
     service: TelegramBotService,
     trainerManager: UserTrainerManager
@@ -142,9 +144,11 @@ private fun handleDictionaryUpload(
     }
 
     val downloadsDir = File("downloads").apply { if (!exists()) mkdirs() }
-    val downloadedFile = File(downloadsDir, "chat_${chatId}_$originalFileName")
 
-    service.downloadFile(filePath, downloadedFile.absolutePath)
+    val downloadedFile = File(downloadsDir, documentUniqueId)
+    if (!downloadedFile.exists()) {
+        service.downloadFile(filePath, downloadedFile.absolutePath)
+    }
 
     val added = mergeWordsIntoUserDictionary(chatId, downloadedFile, trainerManager)
 
