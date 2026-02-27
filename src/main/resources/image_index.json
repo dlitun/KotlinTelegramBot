@@ -1,0 +1,4 @@
+{
+  "cat": { "path": "images/cat.jpg", "fileId": null, "hasSpoiler": false },
+  "dog": { "path": "images/dog.jpg", "fileId": null, "hasSpoiler": true }
+}

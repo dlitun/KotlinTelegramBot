@@ -1,5 +1,7 @@
 package telegram
 
+import data.ImageHintsRepository
+import domain.HintImageService
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -44,6 +46,8 @@ class TelegramBotService(private val token: String) {
     private val okHttpClient = OkHttpClient()
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    private val hintImageService = HintImageService(ImageHintsRepository(), this)
 
     fun getUpdates(offset: Long): List<Update> {
         val url = "${BOT_URL}$token/getUpdates?offset=$offset"
@@ -104,10 +108,7 @@ class TelegramBotService(private val token: String) {
 
     fun sendQuestion(chatId: Long, question: Question): String {
 
-        val file = File("images/${question.questionWord.original}.jpg")
-        if (file.exists()) {
-            sendPhoto(file, chatId, true)
-        }
+        hintImageService.sendHintIfExists(question.questionWord.original, chatId)
 
         val url = "${BOT_URL}$token/sendMessage"
 
@@ -200,6 +201,25 @@ class TelegramBotService(private val token: String) {
                 file.name,
                 file.readBytes().toRequestBody("image/jpeg".toMediaType())
             )
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            response.body?.string() ?: ""
+        }
+    }
+
+    fun sendPhotoByFileId(fileId: String, chatId: Long, hasSpoiler: Boolean = false): String {
+        val url = "${BOT_URL}$token/sendPhoto"
+
+        val requestBody = okhttp3.FormBody.Builder()
+            .add("chat_id", chatId.toString())
+            .add("photo", fileId)
+            .add("has_spoiler", hasSpoiler.toString())
             .build()
 
         val request = Request.Builder()
