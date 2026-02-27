@@ -41,6 +41,13 @@ data class TelegramFile(
     @SerialName("file_path") val filePath: String
 )
 
+@Serializable
+private data class TelegramErrorResponse(
+    val ok: Boolean,
+    val description: String? = null,
+    @SerialName("error_code") val errorCode: Int? = null
+)
+
 class TelegramBotService(private val token: String) {
 
     private val okHttpClient = OkHttpClient()
@@ -82,6 +89,10 @@ class TelegramBotService(private val token: String) {
     ): String {
         val url = "${BOT_URL}$token/sendMessage"
 
+        println(
+            "DEBUG: sendMenu called chatId=$chatId callbacks=[learn='$callbackLearn', stats='$callbackStats', reset='$callbackReset']"
+        )
+
         val jsonBody = """
             {
               "chat_id": $chatId,
@@ -89,25 +100,52 @@ class TelegramBotService(private val token: String) {
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Изучить слова", "callback_data": "$callbackLearn" },
-                    { "text": "Статистика", "callback_data": "$callbackStats" },
-                    { "text": "Сброс", "callback_data": "$callbackReset" }
+                    { "text": "Изучить слова", "callback_data": "${callbackLearn}" },
+                    { "text": "Статистика", "callback_data": "${callbackStats}" },
+                    { "text": "Сброс", "callback_data": "${callbackReset}" }
                   ]
                 ]
               }
             }
         """.trimIndent()
 
+        println("DEBUG: sendMenu request json=\n$jsonBody")
+
         val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
 
+        return executeAndLog("sendMenu", request)
+    }
+
+    private fun executeAndLog(tag: String, request: Request): String {
         return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val responseBody = response.body?.string().orEmpty()
+
+            println("DEBUG: $tag request ${request.method} ${request.url}")
+            println("DEBUG: $tag response code=${response.code}")
+            println("DEBUG: $tag response body=$responseBody")
+
+            if (!response.isSuccessful) {
+                // Telegram почти всегда возвращает JSON с description
+                val parsed = runCatching { json.decodeFromString(TelegramErrorResponse.serializer(), responseBody) }.getOrNull()
+                val details = parsed?.description ?: responseBody
+                error("Telegram API call failed ($tag): HTTP ${response.code}. $details")
+            }
+
+            // Даже при HTTP 200 Telegram может вернуть ok=false
+            val parsed = runCatching { json.decodeFromString(TelegramErrorResponse.serializer(), responseBody) }.getOrNull()
+            if (parsed != null && !parsed.ok) {
+                val details = parsed.description ?: responseBody
+                error("Telegram API call failed ($tag): ok=false. $details")
+            }
+
+            responseBody
         }
     }
 
     fun sendQuestion(chatId: Long, question: Question): String {
 
+        // KTB-27: отправка картинки-подсказки (on-demand + кеш fileId)
         hintImageService.sendHintIfExists(question.questionWord.original, chatId)
 
         val url = "${BOT_URL}$token/sendMessage"
@@ -221,6 +259,13 @@ class TelegramBotService(private val token: String) {
     ): String {
         val url = "${BOT_URL}$token/sendPhoto"
 
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        val mime = when (ext) {
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            else -> "image/jpeg"
+        }
+
         val requestBody = okhttp3.MultipartBody.Builder()
             .setType(okhttp3.MultipartBody.FORM)
             .addFormDataPart("chat_id", chatId.toString())
@@ -228,7 +273,7 @@ class TelegramBotService(private val token: String) {
             .addFormDataPart(
                 "photo",
                 fileName,
-                bytes.toRequestBody("image/*".toMediaType())
+                bytes.toRequestBody(mime.toMediaType())
             )
             .build()
 
@@ -237,9 +282,13 @@ class TelegramBotService(private val token: String) {
             .post(requestBody)
             .build()
 
-        return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
-        }
+        val call = okHttpClient.newCall(request).execute()
+        val bodyString = call.body?.string()
+
+        println("sendPhoto code=${call.code}")
+        println("sendPhoto body=$bodyString")
+
+        return bodyString ?: ""
     }
 
     fun sendPhotoByFileId(fileId: String, chatId: Long, hasSpoiler: Boolean = false): String {

@@ -8,31 +8,70 @@ class HintImageService(
     private val repo: ImageHintsRepository,
     private val bot: TelegramBotService
 ) {
+
     fun sendHintIfExists(word: String, chatId: Long) {
         val index = repo.load()
         val key = word.trim().lowercase()
 
-        val meta: ImageHint = index[key] ?: return
+        println("DEBUG: sendHintIfExists word='$word' key='$key'")
+        println("DEBUG: index keys=${index.keys}")
+
+        val meta: ImageHint = index[key] ?: run {
+            println("DEBUG: meta NOT FOUND for key='$key'")
+            return
+        }
+
+        println("DEBUG: meta FOUND path='${meta.path}' fileId='${meta.fileId}' hasSpoiler=${meta.hasSpoiler}")
 
         meta.fileId?.let { existingId ->
-            bot.sendPhotoByFileId(existingId, chatId, meta.hasSpoiler)
+            println("DEBUG: sending by fileId=$existingId")
+            val response = bot.sendPhotoByFileId(existingId, chatId, meta.hasSpoiler)
+            println("DEBUG: sendPhotoByFileId response=$response")
             return
         }
 
         val resourcePath = meta.path.removePrefix("/")
-        val bytes = this::class.java.classLoader.getResourceAsStream(resourcePath)
-            ?.use { it.readBytes() }
-            ?: return
+        println("DEBUG: loading resource='$resourcePath'")
 
-        if (bytes.isEmpty()) return
+        val stream = this::class.java.classLoader.getResourceAsStream(resourcePath)
+
+        if (stream == null) {
+            println("DEBUG: resource NOT FOUND: '$resourcePath'")
+            return
+        }
+
+        val bytes = stream.use { it.readBytes() }
+
+        println("DEBUG: resource loaded bytes=${bytes.size}")
+
+        if (bytes.isEmpty()) {
+            println("DEBUG: bytes EMPTY for '$resourcePath'")
+            return
+        }
 
         val fileName = resourcePath.substringAfterLast('/')
-        val responseJson = bot.sendPhoto(fileName = fileName, bytes = bytes, chatId = chatId, hasSpoiler = meta.hasSpoiler)
+        println("DEBUG: calling bot.sendPhoto fileName='$fileName'")
 
-        val newFileId = extractLargestPhotoFileId(responseJson) ?: return
+        val responseJson = bot.sendPhoto(
+            fileName = fileName,
+            bytes = bytes,
+            chatId = chatId,
+            hasSpoiler = meta.hasSpoiler
+        )
+
+        println("DEBUG: sendPhoto response=$responseJson")
+
+        val newFileId = extractLargestPhotoFileId(responseJson) ?: run {
+            println("DEBUG: fileId NOT extracted from response")
+            return
+        }
+
+        println("DEBUG: extracted fileId=$newFileId")
 
         index[key] = meta.copy(fileId = newFileId)
         repo.save(index)
+
+        println("DEBUG: saved fileId to cache for key='$key'")
     }
 
     private fun extractLargestPhotoFileId(json: String): String? {

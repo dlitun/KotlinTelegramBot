@@ -35,6 +35,8 @@ fun main(args: Array<String>) {
             if (updates.isEmpty()) continue
             offset = updates.maxOf { it.updateId } + 1
 
+            println("DEBUG: got updates count=${updates.size} newOffset=$offset")
+
             for (update in updates) {
 
                 update.message?.let { message ->
@@ -53,9 +55,19 @@ fun main(args: Array<String>) {
                         return@let
                     }
 
-                    val text = message.text ?: return@let
-                    when (text) {
-                        START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                    val rawText = message.text ?: return@let
+                    val normalizedText = rawText.trim()
+                    val command = normalizedText
+                        .substringBefore(' ')          // убираем аргументы: "/start foo"
+                        .substringBefore('@')          // убираем суффикс: "/start@MyBot"
+
+                    println("DEBUG: message chatId=$chatId textRaw='$rawText' command='$command'")
+
+                    when (command) {
+                        START_COMMAND -> {
+                            println("DEBUG: START_COMMAND matched -> calling sendMenu")
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
 
                         RESET_COMMAND -> {
                             trainerManager.reset(chatId)
@@ -72,6 +84,9 @@ fun main(args: Array<String>) {
 
                     val data = callback.data ?: return@let
                     val chatId = callback.message?.chat?.id ?: return@let
+
+                    println("DEBUG: callbackQuery chatId=$chatId data='$data'")
+
                     val trainer = trainerManager.getTrainer(chatId)
 
                     when {
