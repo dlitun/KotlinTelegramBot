@@ -3,7 +3,6 @@ package domain
 import data.ImageHintsRepository
 import model.ImageHint
 import telegram.TelegramBotService
-import java.io.File
 
 class HintImageService(
     private val repo: ImageHintsRepository,
@@ -11,21 +10,28 @@ class HintImageService(
 ) {
     fun sendHintIfExists(word: String, chatId: Long) {
         val index = repo.load()
-        val meta: ImageHint = index[word] ?: return
+        val key = word.trim().lowercase()
+
+        val meta: ImageHint = index[key] ?: return
 
         meta.fileId?.let { existingId ->
             bot.sendPhotoByFileId(existingId, chatId, meta.hasSpoiler)
             return
         }
 
-        val file = File("src/main/resources/${meta.path}")
-        if (!file.exists()) return
+        val resourcePath = meta.path.removePrefix("/")
+        val bytes = this::class.java.classLoader.getResourceAsStream(resourcePath)
+            ?.use { it.readBytes() }
+            ?: return
 
-        val responseJson = bot.sendPhoto(file, chatId, meta.hasSpoiler)
+        if (bytes.isEmpty()) return
+
+        val fileName = resourcePath.substringAfterLast('/')
+        val responseJson = bot.sendPhoto(fileName = fileName, bytes = bytes, chatId = chatId, hasSpoiler = meta.hasSpoiler)
 
         val newFileId = extractLargestPhotoFileId(responseJson) ?: return
 
-        index[word] = meta.copy(fileId = newFileId)
+        index[key] = meta.copy(fileId = newFileId)
         repo.save(index)
     }
 

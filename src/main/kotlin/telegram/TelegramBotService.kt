@@ -213,6 +213,35 @@ class TelegramBotService(private val token: String) {
         }
     }
 
+    fun sendPhoto(
+        fileName: String,
+        bytes: ByteArray,
+        chatId: Long,
+        hasSpoiler: Boolean = false
+    ): String {
+        val url = "${BOT_URL}$token/sendPhoto"
+
+        val requestBody = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("chat_id", chatId.toString())
+            .addFormDataPart("has_spoiler", hasSpoiler.toString())
+            .addFormDataPart(
+                "photo",
+                fileName,
+                bytes.toRequestBody("image/*".toMediaType())
+            )
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            response.body?.string() ?: ""
+        }
+    }
+
     fun sendPhotoByFileId(fileId: String, chatId: Long, hasSpoiler: Boolean = false): String {
         val url = "${BOT_URL}$token/sendPhoto"
 
