@@ -1,6 +1,3 @@
-hello|привет|0
-dog|собака|0
-cat|кошка|0
 book|книга|0
 car|машина|0
 house|дом|0
@@ -17,8 +14,7 @@ country|страна|0
 time|время|0
 day|день|0
 night|ночь|0
+love|любовь|0
 money|деньги|0
 music|музыка|0
 movie|фильм|0
-love|любовь|0
-superman|супермен|0
