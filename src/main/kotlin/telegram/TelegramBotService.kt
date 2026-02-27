@@ -103,6 +103,12 @@ class TelegramBotService(private val token: String) {
     }
 
     fun sendQuestion(chatId: Long, question: Question): String {
+
+        val file = File("images/${question.questionWord.original}.jpg")
+        if (file.exists()) {
+            sendPhoto(file, chatId, true)
+        }
+
         val url = "${BOT_URL}$token/sendMessage"
 
         val buttonsJson = question.options
@@ -180,5 +186,29 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).post(body).build()
 
         okHttpClient.newCall(request).execute().use { /* просто закрываем */ }
+    }
+
+    fun sendPhoto(file: File, chatId: Long, hasSpoiler: Boolean = false): String {
+        val url = "${BOT_URL}$token/sendPhoto"
+
+        val requestBody = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("chat_id", chatId.toString())
+            .addFormDataPart("has_spoiler", hasSpoiler.toString())
+            .addFormDataPart(
+                "photo",
+                file.name,
+                file.readBytes().toRequestBody("image/jpeg".toMediaType())
+            )
+            .build()
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            response.body?.string() ?: ""
+        }
     }
 }
