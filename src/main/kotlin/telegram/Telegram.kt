@@ -27,7 +27,10 @@ fun main(args: Array<String>) {
 
     // Картинки-подсказки: индекс из resources, кэш fileId рядом с jar/в папке запуска
     val imageIndex = ImageIndex.loadFromResources("image_index.json")
+    println("DEBUG: image_index loaded")
+
     val fileIdCache = ImageFileIdCache(File("image_fileids.properties"))
+    println("DEBUG: fileId cache path=${File("image_fileids.properties").absolutePath}")
 
     var offset = 0L
 
@@ -224,24 +227,36 @@ fun checkNextQuestionAndSend(
     try {
         val wordKey = question.questionWord.original.trim().lowercase()
         val hint = imageIndex.find(wordKey)
+
+        println(
+            "DEBUG: hint lookup word='$wordKey' found=${hint != null} " +
+                "cacheHit=${!fileIdCache.get(wordKey).isNullOrBlank()}"
+        )
+
         if (hint != null) {
             val cachedFileId = fileIdCache.get(wordKey)
+
             if (!cachedFileId.isNullOrBlank()) {
                 val resp = telegramBotService.sendPhotoByFileId(chatId, cachedFileId, hint.hasSpoiler)
-                // Если Telegram вернул ошибку (например, file_id протух) — попробуем загрузить файлом ниже
                 val ok = resp.contains("\"ok\":true")
+                println("DEBUG: sendHint(file_id) word='$wordKey' ok=$ok")
+
                 if (!ok) {
                     println("DEBUG: cached file_id failed for '$wordKey', fallback to upload. resp=$resp")
                     val file = ResourceFileExtractor.extractTo(hint.path)
+                    println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                     val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                     telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
+                        println("DEBUG: caching new file_id for '$wordKey' = $newId")
                         fileIdCache.put(wordKey, newId)
                     }
                 }
             } else {
                 val file = ResourceFileExtractor.extractTo(hint.path)
+                println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                 val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                 telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
+                    println("DEBUG: caching file_id for '$wordKey' = $newId")
                     fileIdCache.put(wordKey, newId)
                 }
             }
