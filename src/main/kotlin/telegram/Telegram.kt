@@ -25,6 +25,10 @@ fun main(args: Array<String>) {
         minCorrect = 3
     )
 
+    // Картинки-подсказки: индекс из resources, кэш fileId рядом с jar/в папке запуска
+    val imageIndex = ImageIndex.loadFromResources("image_index.json")
+    val fileIdCache = ImageFileIdCache(File("image_fileids.properties"))
+
     var offset = 0L
 
     while (true) {
@@ -55,7 +59,10 @@ fun main(args: Array<String>) {
 
                     val text = message.text ?: return@let
                     when (text) {
-                        START_COMMAND -> service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        START_COMMAND -> {
+                            println("DEBUG: received /start for chatId=$chatId")
+                            service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
 
                         RESET_COMMAND -> {
                             trainerManager.reset(chatId)
@@ -84,7 +91,7 @@ fun main(args: Array<String>) {
                         }
 
                         data == CALLBACK_LEARN -> {
-                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                            checkNextQuestionAndSend(trainerManager, service, chatId, imageIndex, fileIdCache)
                         }
 
                         data == CALLBACK_RESET -> {
@@ -114,7 +121,7 @@ fun main(args: Array<String>) {
                                 )
                             }
 
-                            checkNextQuestionAndSend(trainerManager, service, chatId)
+                            checkNextQuestionAndSend(trainerManager, service, chatId, imageIndex, fileIdCache)
                         }
 
                         else -> service.sendMessage(chatId, "Неизвестная команда: $data")
@@ -201,7 +208,9 @@ private fun mergeWordsIntoUserDictionary(
 fun checkNextQuestionAndSend(
     trainerManager: UserTrainerManager,
     telegramBotService: TelegramBotService,
-    chatId: Long
+    chatId: Long,
+    imageIndex: ImageIndex,
+    fileIdCache: ImageFileIdCache
 ) {
     val trainer = trainerManager.getTrainer(chatId)
     val question = trainer.getNextQuestion()
@@ -211,5 +220,37 @@ fun checkNextQuestionAndSend(
         return
     }
 
+    // 1) Картинка-подсказка (если есть)
+    try {
+        val wordKey = question.questionWord.original.trim().lowercase()
+        val hint = imageIndex.find(wordKey)
+        if (hint != null) {
+            val cachedFileId = fileIdCache.get(wordKey)
+            if (!cachedFileId.isNullOrBlank()) {
+                val resp = telegramBotService.sendPhotoByFileId(chatId, cachedFileId, hint.hasSpoiler)
+                // Если Telegram вернул ошибку (например, file_id протух) — попробуем загрузить файлом ниже
+                val ok = resp.contains("\"ok\":true")
+                if (!ok) {
+                    println("DEBUG: cached file_id failed for '$wordKey', fallback to upload. resp=$resp")
+                    val file = ResourceFileExtractor.extractTo(hint.path)
+                    val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
+                    telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
+                        fileIdCache.put(wordKey, newId)
+                    }
+                }
+            } else {
+                val file = ResourceFileExtractor.extractTo(hint.path)
+                val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
+                telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
+                    fileIdCache.put(wordKey, newId)
+                }
+            }
+        }
+    } catch (e: Exception) {
+        println("DEBUG: sendHint failed: ${e.message}")
+        e.printStackTrace()
+    }
+
+    // 2) Сам вопрос
     telegramBotService.sendQuestion(chatId, question)
 }
