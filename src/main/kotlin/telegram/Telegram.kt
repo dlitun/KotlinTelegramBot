@@ -225,16 +225,17 @@ fun checkNextQuestionAndSend(
 
     // 1) Картинка-подсказка (если есть)
     try {
-        // В словаре Word: original = русское, translate = английское.
-        // Картинки в image_index.json названы по английским словам (cat, dog, ...),
-        // поэтому ключ должен быть translate.
-        val hintKey = question.questionWord.translate.trim().lowercase()
+        // В текущем формате словаря:
+        // - question.questionWord.original = АНГЛИЙСКОЕ слово (мы его показываем в тексте вопроса)
+        // - question.questionWord.translate = РУССКИЙ перевод (он в кнопках)
+        // image_index.json сделан по английским ключам (cat/dog/...), значит берём original.
+        val hintKey = question.questionWord.original.trim().lowercase()
         val hint = imageIndex.find(hintKey)
 
         val cached = fileIdCache.get(hintKey)
         println(
-            "DEBUG: hint lookup key='$hintKey' found=${hint != null} " +
-                "cacheHit=${!cached.isNullOrBlank()} questionOriginal='${question.questionWord.original}'"
+            "DEBUG: hint lookup key='$hintKey' found=${hint != null} cacheHit=${!cached.isNullOrBlank()} " +
+                "questionOriginal='${question.questionWord.original}' questionTranslate='${question.questionWord.translate}'"
         )
 
         if (hint != null) {
