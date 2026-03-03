@@ -9,8 +9,10 @@ import model.ApiResponse
 import model.Question
 import model.Update
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.net.URLEncoder
@@ -37,6 +39,24 @@ data class TelegramFile(
     @SerialName("file_unique_id") val fileUniqueId: String,
     @SerialName("file_size") val fileSize: Long,
     @SerialName("file_path") val filePath: String
+)
+
+@Serializable
+private data class SendPhotoResponse(
+    val ok: Boolean,
+    val result: SendPhotoMessage? = null,
+    val description: String? = null
+)
+
+@Serializable
+private data class SendPhotoMessage(
+    val photo: List<PhotoSize> = emptyList()
+)
+
+@Serializable
+private data class PhotoSize(
+    @SerialName("file_id") val fileId: String,
+    @SerialName("file_size") val fileSize: Int? = null
 )
 
 class TelegramBotService(private val token: String) {
@@ -98,7 +118,9 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).post(body).build()
 
         return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: sendMenu http=${response.code} body=$respBody")
+            respBody
         }
     }
 
@@ -129,7 +151,85 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).post(body).build()
 
         return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: sendQuestion http=${response.code} body=$respBody")
+            respBody
+        }
+    }
+
+    fun sendPhotoByFileId(chatId: Long, fileId: String, hasSpoiler: Boolean = false, caption: String? = null): String {
+        val url = "${BOT_URL}$token/sendPhoto"
+
+        val form = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", chatId.toString())
+            .addFormDataPart("photo", fileId)
+            .addFormDataPart("has_spoiler", hasSpoiler.toString())
+
+        if (!caption.isNullOrBlank()) {
+            form.addFormDataPart("caption", caption)
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .post(form.build())
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: sendPhoto(file_id) http=${response.code} body=$respBody")
+            respBody
+        }
+    }
+
+    fun sendPhotoByFile(chatId: Long, file: File, hasSpoiler: Boolean = false, caption: String? = null): String {
+        require(file.exists()) { "Photo file not found: ${file.absolutePath}" }
+
+        val url = "${BOT_URL}$token/sendPhoto"
+
+        val form = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("chat_id", chatId.toString())
+            .addFormDataPart("has_spoiler", hasSpoiler.toString())
+            .addFormDataPart(
+                "photo",
+                file.name,
+                file.asRequestBody(guessImageMimeType(file.name).toMediaType())
+            )
+
+        if (!caption.isNullOrBlank()) {
+            form.addFormDataPart("caption", caption)
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .post(form.build())
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: sendPhoto(file) http=${response.code} body=$respBody")
+            respBody
+        }
+    }
+
+    fun extractBestPhotoFileId(sendPhotoResponseJson: String): String? {
+        return try {
+            val parsed = json.decodeFromString(SendPhotoResponse.serializer(), sendPhotoResponseJson)
+            if (!parsed.ok) return null
+            val best = parsed.result?.photo?.maxByOrNull { it.fileSize ?: 0 } ?: return null
+            best.fileId
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun guessImageMimeType(fileName: String): String {
+        return when (fileName.substringAfterLast('.', "").lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            else -> "application/octet-stream"
         }
     }
 

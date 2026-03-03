@@ -1,0 +1,75 @@
+{
+    "book": {
+        "path": "images/book.jpg"
+    },
+    "car": {
+        "path": "images/car.jpg"
+    },
+    "cat": {
+        "path": "images/cat.jpg"
+    },
+    "city": {
+        "path": "images/city.jpg"
+    },
+    "country": {
+        "path": "images/country.jpg"
+    },
+    "day": {
+        "path": "images/day.jpg"
+    },
+    "dog": {
+        "path": "images/dog.jpg",
+        "hasSpoiler": true
+    },
+    "family": {
+        "path": "images/family.jpg"
+    },
+    "food": {
+        "path": "images/food.jpg"
+    },
+    "friend": {
+        "path": "images/friend.jpg"
+    },
+    "hello": {
+        "path": "images/hello.jpg"
+    },
+    "house": {
+        "path": "images/house.jpg"
+    },
+    "love": {
+        "path": "images/love.jpg"
+    },
+    "money": {
+        "path": "images/money.jpg"
+    },
+    "moon": {
+        "path": "images/moon.jpg"
+    },
+    "movie": {
+        "path": "images/movie.jpg"
+    },
+    "music": {
+        "path": "images/music.jpg"
+    },
+    "night": {
+        "path": "images/night.jpg"
+    },
+    "school": {
+        "path": "images/school.jpg"
+    },
+    "sun": {
+        "path": "images/sun.jpg"
+    },
+    "super": {
+        "path": "images/super.jpg"
+    },
+    "time": {
+        "path": "images/time.jpg"
+    },
+    "water": {
+        "path": "images/water.jpg"
+    },
+    "work": {
+        "path": "images/work.jpg"
+    }
+}

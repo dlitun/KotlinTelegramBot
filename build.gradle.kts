@@ -29,3 +29,11 @@ kotlin {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("generateImageIndex") {
+    group = "tools"
+    description = "Generate image_index.json based on files in src/main/resources/images"
+
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("tools.GenerateImageIndexKt")
+}

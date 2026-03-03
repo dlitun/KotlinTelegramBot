@@ -13,10 +13,22 @@ class LearnWordsTrainerTest {
             deleteOnExit()
         }
 
+    private fun create4Of7DictionaryFile(): File = createTempDictionaryFile(
+        """
+        a|а|3
+        b|б|3
+        c|с|3
+        d|д|3
+        e|е|0
+        f|ф|0
+        g|г|0
+        """
+    )
+
     @Test
     fun `test statistics with 4 words of 7`() {
-        val path = "src/test/resources/4_words_of_7.txt"
-        val repository = DictionaryRepository(path)
+        val file = create4Of7DictionaryFile()
+        val repository = DictionaryRepository(file.absolutePath)
         val trainer = LearnWordsTrainer(repository)
 
         assertEquals(
@@ -98,8 +110,8 @@ class LearnWordsTrainerTest {
 
     @Test
     fun `test checkAnswer() with true`() {
-        val path = "src/test/resources/4_words_of_7.txt"
-        val repository = DictionaryRepository(path)
+        val file = create4Of7DictionaryFile()
+        val repository = DictionaryRepository(file.absolutePath)
         val trainer = LearnWordsTrainer(repository)
 
         val question = trainer.getNextQuestion()
@@ -113,8 +125,8 @@ class LearnWordsTrainerTest {
 
     @Test
     fun `test checkAnswer() with false`() {
-        val path = "src/test/resources/4_words_of_7.txt"
-        val repository = DictionaryRepository(path)
+        val file = create4Of7DictionaryFile()
+        val repository = DictionaryRepository(file.absolutePath)
         val trainer = LearnWordsTrainer(repository)
 
         val question = trainer.getNextQuestion()
