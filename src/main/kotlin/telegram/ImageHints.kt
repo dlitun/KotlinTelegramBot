@@ -23,6 +23,8 @@ data class ImageHintEntry(
  * }
  */
 class ImageIndex(private val map: Map<String, ImageHintEntry>) {
+    val size: Int get() = map.size
+
     fun find(word: String): ImageHintEntry? = map[word.trim().lowercase()]
 
     companion object {
@@ -31,7 +33,10 @@ class ImageIndex(private val map: Map<String, ImageHintEntry>) {
 
         fun loadFromResources(resourceName: String = "image_index.json"): ImageIndex {
             val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourceName)
-                ?: return ImageIndex(emptyMap())
+            if (stream == null) {
+                println("DEBUG: image index resource not found: $resourceName")
+                return ImageIndex(emptyMap())
+            }
             val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             val parsed: Map<String, ImageHintEntry> = json.decodeFromString(mapSerializer, text)
             return ImageIndex(parsed)
