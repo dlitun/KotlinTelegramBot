@@ -11,11 +11,13 @@ import model.Update
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 import kotlin.text.Charsets.UTF_8
 
 private const val BOT_URL = "https://api.telegram.org/bot"
@@ -61,7 +63,15 @@ private data class PhotoSize(
 
 class TelegramBotService(private val token: String) {
 
-    private val okHttpClient = OkHttpClient()
+    private val okHttpClient = OkHttpClient.Builder()
+        // На VPS иногда залипает HTTP/2 стрим и валится таймаутами.
+        // Принудительно используем HTTP/1.1 + явные таймауты.
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)
+        .build()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -70,7 +80,11 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).get().build()
 
         val bodyString = okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val respBody = response.body?.string() ?: ""
+            if (!response.isSuccessful) {
+                println("DEBUG: getUpdates http=${response.code} body=$respBody")
+            }
+            respBody
         }
 
         val apiResponse = json.decodeFromString(
