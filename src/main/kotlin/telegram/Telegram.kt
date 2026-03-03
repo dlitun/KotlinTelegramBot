@@ -27,7 +27,7 @@ fun main(args: Array<String>) {
 
     // Картинки-подсказки: индекс из resources, кэш fileId рядом с jar/в папке запуска
     val imageIndex = ImageIndex.loadFromResources("image_index.json")
-    println("DEBUG: image_index loaded")
+    println("DEBUG: image_index loaded size=${imageIndex.size}")
 
     val fileIdCache = ImageFileIdCache(File("image_fileids.properties"))
     println("DEBUG: fileId cache path=${File("image_fileids.properties").absolutePath}")
@@ -225,30 +225,32 @@ fun checkNextQuestionAndSend(
 
     // 1) Картинка-подсказка (если есть)
     try {
-        val wordKey = question.questionWord.original.trim().lowercase()
-        val hint = imageIndex.find(wordKey)
+        // В словаре Word: original = русское, translate = английское.
+        // Картинки в image_index.json названы по английским словам (cat, dog, ...),
+        // поэтому ключ должен быть translate.
+        val hintKey = question.questionWord.translate.trim().lowercase()
+        val hint = imageIndex.find(hintKey)
 
+        val cached = fileIdCache.get(hintKey)
         println(
-            "DEBUG: hint lookup word='$wordKey' found=${hint != null} " +
-                "cacheHit=${!fileIdCache.get(wordKey).isNullOrBlank()}"
+            "DEBUG: hint lookup key='$hintKey' found=${hint != null} " +
+                "cacheHit=${!cached.isNullOrBlank()} questionOriginal='${question.questionWord.original}'"
         )
 
         if (hint != null) {
-            val cachedFileId = fileIdCache.get(wordKey)
-
-            if (!cachedFileId.isNullOrBlank()) {
-                val resp = telegramBotService.sendPhotoByFileId(chatId, cachedFileId, hint.hasSpoiler)
+            if (!cached.isNullOrBlank()) {
+                val resp = telegramBotService.sendPhotoByFileId(chatId, cached, hint.hasSpoiler)
                 val ok = resp.contains("\"ok\":true")
-                println("DEBUG: sendHint(file_id) word='$wordKey' ok=$ok")
+                println("DEBUG: sendHint(file_id) key='$hintKey' ok=$ok")
 
                 if (!ok) {
-                    println("DEBUG: cached file_id failed for '$wordKey', fallback to upload. resp=$resp")
+                    println("DEBUG: cached file_id failed for key='$hintKey', fallback to upload. resp=$resp")
                     val file = ResourceFileExtractor.extractTo(hint.path)
                     println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                     val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                     telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                        println("DEBUG: caching new file_id for '$wordKey' = $newId")
-                        fileIdCache.put(wordKey, newId)
+                        println("DEBUG: caching new file_id for key='$hintKey' = $newId")
+                        fileIdCache.put(hintKey, newId)
                     }
                 }
             } else {
@@ -256,8 +258,8 @@ fun checkNextQuestionAndSend(
                 println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                 val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                 telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                    println("DEBUG: caching file_id for '$wordKey' = $newId")
-                    fileIdCache.put(wordKey, newId)
+                    println("DEBUG: caching file_id for key='$hintKey' = $newId")
+                    fileIdCache.put(hintKey, newId)
                 }
             }
         }
