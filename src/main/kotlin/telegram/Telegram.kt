@@ -234,8 +234,11 @@ fun checkNextQuestionAndSend(
                     println("DEBUG: cached file_id failed for '$wordKey', fallback to upload. resp=$resp")
                     val file = ResourceFileExtractor.extractTo(hint.path)
                     val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
-                    telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
+                    val newId = telegramBotService.extractBestPhotoFileId(uploadResp)
+                    if (newId != null) {
                         fileIdCache.put(wordKey, newId)
+                    } else {
+                        fileIdCache.remove(wordKey)
                     }
                 }
             } else {

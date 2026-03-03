@@ -53,6 +53,15 @@ class ImageFileIdCache(private val file: File) {
 
     fun put(wordKey: String, fileId: String) {
         props.setProperty(wordKey, fileId)
+        persist()
+    }
+
+    fun remove(wordKey: String) {
+        props.remove(wordKey)
+        persist()
+    }
+
+    private fun persist() {
         file.parentFile?.mkdirs()
         file.outputStream().use { out -> props.store(out, "telegram image file_id cache") }
     }
