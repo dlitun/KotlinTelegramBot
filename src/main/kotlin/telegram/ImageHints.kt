@@ -7,6 +7,8 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.Properties
+import java.util.logging.Level
+import java.util.logging.Logger
 
 @Serializable
 data class ImageHintEntry(
@@ -28,13 +30,14 @@ class ImageIndex(private val map: Map<String, ImageHintEntry>) {
     fun find(word: String): ImageHintEntry? = map[word.trim().lowercase()]
 
     companion object {
+        private val log = Logger.getLogger(ImageIndex::class.java.name)
         private val json = Json { ignoreUnknownKeys = true }
         private val mapSerializer = MapSerializer(String.serializer(), ImageHintEntry.serializer())
 
         fun loadFromResources(resourceName: String = "image_index.json"): ImageIndex {
             val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourceName)
             if (stream == null) {
-                println("DEBUG: image index resource not found: $resourceName")
+                log.log(Level.FINE, "image index resource not found: {0}", resourceName)
                 return ImageIndex(emptyMap())
             }
             val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
