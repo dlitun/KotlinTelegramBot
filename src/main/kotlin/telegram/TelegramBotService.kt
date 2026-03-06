@@ -5,7 +5,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import model.ApiResponse
+import model.Message
 import model.Question
 import model.Update
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,6 +65,13 @@ private data class PhotoSize(
     @SerialName("file_size") val fileSize: Int? = null
 )
 
+@Serializable
+private data class EditMessageTextRequest(
+    @SerialName("chat_id") val chatId: Long,
+    @SerialName("message_id") val messageId: Long,
+    val text: String
+)
+
 class TelegramBotService(private val token: String) {
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -100,7 +111,32 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).get().build()
 
         return okHttpClient.newCall(request).execute().use { response ->
-            response.body?.string() ?: ""
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: sendMessage http=${response.code} body=$respBody")
+            respBody
+        }
+    }
+
+    fun editMessage(chatId: Long, messageId: Long, message: String): String {
+        val url = "${BOT_URL}$token/editMessageText"
+
+        val requestBody = json.encodeToString(
+            EditMessageTextRequest(
+                chatId = chatId,
+                messageId = messageId,
+                text = message
+            )
+        ).toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        return okHttpClient.newCall(request).execute().use { response ->
+            val respBody = response.body?.string() ?: ""
+            println("DEBUG: editMessage http=${response.code} body=$respBody")
+            respBody
         }
     }
 
@@ -294,5 +330,39 @@ class TelegramBotService(private val token: String) {
         val request = Request.Builder().url(url).post(body).build()
 
         okHttpClient.newCall(request).execute().use { /* просто закрываем */ }
+    }
+
+    fun extractMessageId(responseJson: String): Long? {
+        return try {
+            val parsed = json.decodeFromString(
+                ApiResponse.serializer(Message.serializer()),
+                responseJson
+            )
+            parsed.result?.messageId
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun isOkResponse(responseJson: String): Boolean {
+        return try {
+            json.parseToJsonElement(responseJson)
+                .jsonObject["ok"]
+                ?.jsonPrimitive
+                ?.booleanOrNull == true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun responseDescription(responseJson: String): String? {
+        return try {
+            json.parseToJsonElement(responseJson)
+                .jsonObject["description"]
+                ?.jsonPrimitive
+                ?.content
+        } catch (_: Exception) {
+            null
+        }
     }
 }

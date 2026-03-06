@@ -11,6 +11,7 @@ class WordTrainer(
     private val minCorrect: Int
 ) {
     private var currentQuestion: Question? = null
+    private val correctAnswerHistory = ArrayDeque<Pair<String, String>>()
 
     fun hasUnlearnedWords(): Boolean =
         dictionary.any { it.correctAnswersCount < minCorrect }
@@ -43,6 +44,21 @@ class WordTrainer(
         return isCorrect
     }
 
+    fun undoLastCorrectAnswer(): Boolean {
+        val lastCorrect = correctAnswerHistory.removeLastOrNull() ?: return false
+
+        val index = dictionary.indexOfFirst {
+            it.original == lastCorrect.first && it.translate == lastCorrect.second
+        }
+
+        if (index == -1) return false
+        if (dictionary[index].correctAnswersCount <= 0) return false
+
+        dictionary[index].correctAnswersCount--
+        repository.save(dictionary)
+        return true
+    }
+
     fun getCurrentCorrectWord(): Word? =
         currentQuestion?.questionWord
 
@@ -65,6 +81,7 @@ class WordTrainer(
 
         if (index != -1) {
             dictionary[index].correctAnswersCount++
+            correctAnswerHistory.addLast(dictionary[index].original to dictionary[index].translate)
             repository.save(dictionary)
         }
     }
