@@ -33,10 +33,8 @@ fun main(args: Array<String>) {
 
     // Картинки-подсказки: индекс из resources, кэш fileId рядом с jar/в папке запуска
     val imageIndex = ImageIndex.loadFromResources("image_index.json")
-    println("DEBUG: image_index loaded size=${imageIndex.size}")
 
     val fileIdCache = ImageFileIdCache(File("image_fileids.properties"))
-    println("DEBUG: fileId cache path=${File("image_fileids.properties").absolutePath}")
 
     var offset = 0L
 
@@ -69,7 +67,6 @@ fun main(args: Array<String>) {
                     val text = message.text ?: return@let
                     when (text) {
                         START_COMMAND -> {
-                            println("DEBUG: received /start for chatId=$chatId")
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
 
@@ -192,18 +189,12 @@ private fun sendOrUpdateStatistics(
                 dynamicMessage.rememberText(chatId, statsText)
                 return
             }
-
-            println(
-                "DEBUG: edit statistics failed, fallback to sendMessage; " +
-                    "chatId=$chatId messageId=$messageId response=$editResponse"
-            )
         }
     }
 
     val sendResponse = telegramBotService.sendMessage(chatId, statsText)
     telegramBotService.extractMessageId(sendResponse)?.let { messageId ->
         dynamicMessage.setMessageId(chatId, messageId)
-        println("DEBUG: dynamic stats messageId saved chatId=$chatId messageId=$messageId")
     }
     dynamicMessage.rememberText(chatId, statsText)
 }
@@ -243,7 +234,6 @@ private fun handleUndoCommand(
     val sendResponse = telegramBotService.sendMessage(chatId, freshText)
     telegramBotService.extractMessageId(sendResponse)?.let { newMessageId ->
         dynamicMessage.setMessageId(chatId, newMessageId)
-        println("DEBUG: undo fallback saved new stats messageId chatId=$chatId messageId=$newMessageId")
     }
     dynamicMessage.rememberText(chatId, freshText)
 }
@@ -370,7 +360,7 @@ internal fun readDictionaryLinesWithFallback(dictionaryFile: File): List<String>
     ) ?: return emptyList()
 
     if (best.charset != Charsets.UTF_8) {
-        println("DEBUG: dictionary decoding fallback charset=${best.charset.name()} file=${dictionaryFile.name}")
+        println("INFO: dictionary decoding fallback charset=${best.charset.name()} file=${dictionaryFile.name}")
     }
 
     return best.text.lineSequence().toList()
@@ -401,39 +391,29 @@ fun checkNextQuestionAndSend(
         val hint = imageIndex.find(hintKey)
 
         val cached = fileIdCache.get(hintKey)
-        println(
-            "DEBUG: hint lookup key='$hintKey' found=${hint != null} cacheHit=${!cached.isNullOrBlank()} " +
-                "questionOriginal='${question.questionWord.original}' questionTranslate='${question.questionWord.translate}'"
-        )
 
         if (hint != null) {
             if (!cached.isNullOrBlank()) {
                 val resp = telegramBotService.sendPhotoByFileId(chatId, cached, hint.hasSpoiler)
                 val ok = resp.contains("\"ok\":true")
-                println("DEBUG: sendHint(file_id) key='$hintKey' ok=$ok")
 
                 if (!ok) {
-                    println("DEBUG: cached file_id failed for key='$hintKey', fallback to upload. resp=$resp")
                     val file = ResourceFileExtractor.extractTo(hint.path)
-                    println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                     val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                     telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                        println("DEBUG: caching new file_id for key='$hintKey' = $newId")
                         fileIdCache.put(hintKey, newId)
                     }
                 }
             } else {
                 val file = ResourceFileExtractor.extractTo(hint.path)
-                println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                 val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                 telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                    println("DEBUG: caching file_id for key='$hintKey' = $newId")
                     fileIdCache.put(hintKey, newId)
                 }
             }
         }
     } catch (e: Exception) {
-        println("DEBUG: sendHint failed: ${e.message}")
+        println("WARN: sendHint failed: ${e.message}")
         e.printStackTrace()
     }
 

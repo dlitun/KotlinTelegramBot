@@ -93,7 +93,7 @@ class TelegramBotService(private val token: String) {
         val bodyString = okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
             if (!response.isSuccessful) {
-                println("DEBUG: getUpdates http=${response.code} body=$respBody")
+                println("WARN: getUpdates http=${response.code} body=$respBody")
             }
             respBody
         }
@@ -112,7 +112,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: sendMessage http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: sendMessage http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
@@ -135,7 +137,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: editMessage http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: editMessage http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
@@ -169,7 +173,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: sendMenu http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: sendMenu http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
@@ -202,7 +208,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: sendQuestion http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: sendQuestion http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
@@ -227,7 +235,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: sendPhoto(file_id) http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: sendPhoto(file_id) http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
@@ -258,7 +268,9 @@ class TelegramBotService(private val token: String) {
 
         return okHttpClient.newCall(request).execute().use { response ->
             val respBody = response.body?.string() ?: ""
-            println("DEBUG: sendPhoto(file) http=${response.code} body=$respBody")
+            if (!response.isSuccessful) {
+                println("WARN: sendPhoto(file) http=${response.code} body=$respBody")
+            }
             respBody
         }
     }
