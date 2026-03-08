@@ -48,7 +48,6 @@ class UserTrainerManager(
         val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourceName)
         if (stream != null) {
             val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            println("DEBUG: base words loaded from resources: $resourceName (chars=${text.length})")
             return text
         }
 
@@ -56,7 +55,6 @@ class UserTrainerManager(
         val baseFile = File(baseWordsFilePath)
         require(baseFile.exists()) { "Base words file not found: ${baseFile.absolutePath} (and resource '$resourceName' not found)" }
         val text = baseFile.readText()
-        println("DEBUG: base words loaded from file: ${baseFile.absolutePath} (chars=${text.length})")
         return text
     }
 }

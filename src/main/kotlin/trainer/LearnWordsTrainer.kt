@@ -29,6 +29,10 @@ class LearnWordsTrainer(
         return wordTrainer.checkAnswer(answerIndex)
     }
 
+    fun undoLastCorrectAnswer(): Boolean {
+        return wordTrainer.undoLastCorrectAnswer()
+    }
+
     fun getCurrentCorrectWord(): Word? {
         return wordTrainer.getCurrentCorrectWord()
     }

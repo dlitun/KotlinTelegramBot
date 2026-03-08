@@ -1,12 +1,15 @@
 package telegram
 
 import data.DictionaryRepository
+import model.Statistics
 import trainer.UserTrainerManager
 import trainer.Word
 import java.io.File
+import java.nio.charset.Charset
 
 private const val START_COMMAND = "/start"
 private const val RESET_COMMAND = "/reset"
+private const val UNDO_COMMAND = "/undo"
 
 private const val CALLBACK_LEARN = "learn_words_clicked"
 private const val CALLBACK_STATS = "statistics_clicked"
@@ -25,12 +28,13 @@ fun main(args: Array<String>) {
         minCorrect = 3
     )
 
+    val dynamicMessage = DynamicMessage()
+    val animationFrameByChat = mutableMapOf<Long, Int>()
+
     // Картинки-подсказки: индекс из resources, кэш fileId рядом с jar/в папке запуска
     val imageIndex = ImageIndex.loadFromResources("image_index.json")
-    println("DEBUG: image_index loaded size=${imageIndex.size}")
 
     val fileIdCache = ImageFileIdCache(File("image_fileids.properties"))
-    println("DEBUG: fileId cache path=${File("image_fileids.properties").absolutePath}")
 
     var offset = 0L
 
@@ -63,14 +67,25 @@ fun main(args: Array<String>) {
                     val text = message.text ?: return@let
                     when (text) {
                         START_COMMAND -> {
-                            println("DEBUG: received /start for chatId=$chatId")
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
 
                         RESET_COMMAND -> {
                             trainerManager.reset(chatId)
+                            dynamicMessage.clear(chatId)
+                            animationFrameByChat.remove(chatId)
                             service.sendMessage(chatId, "Прогресс сброшен ✅")
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
+                        }
+
+                        UNDO_COMMAND -> {
+                            handleUndoCommand(
+                                chatId = chatId,
+                                trainerManager = trainerManager,
+                                telegramBotService = service,
+                                dynamicMessage = dynamicMessage,
+                                animationFrameByChat = animationFrameByChat
+                            )
                         }
                     }
                 }
@@ -86,10 +101,13 @@ fun main(args: Array<String>) {
 
                     when {
                         data == CALLBACK_STATS -> {
-                            val stats = trainer.getStatistics()
-                            service.sendMessage(
-                                chatId,
-                                "Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%"
+                            sendOrUpdateStatistics(
+                                chatId = chatId,
+                                trainerManager = trainerManager,
+                                telegramBotService = service,
+                                dynamicMessage = dynamicMessage,
+                                animationFrameByChat = animationFrameByChat,
+                                forceNewMessage = true
                             )
                         }
 
@@ -99,6 +117,8 @@ fun main(args: Array<String>) {
 
                         data == CALLBACK_RESET -> {
                             trainerManager.reset(chatId)
+                            dynamicMessage.clear(chatId)
+                            animationFrameByChat.remove(chatId)
                             service.sendMessage(chatId, "Прогресс сброшен ✅")
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
                         }
@@ -113,6 +133,14 @@ fun main(args: Array<String>) {
                             val isCorrect = trainer.checkAnswer(answerIndex)
                             if (isCorrect) {
                                 service.sendMessage(chatId, "Правильно!")
+                                sendOrUpdateStatistics(
+                                    chatId = chatId,
+                                    trainerManager = trainerManager,
+                                    telegramBotService = service,
+                                    dynamicMessage = dynamicMessage,
+                                    animationFrameByChat = animationFrameByChat,
+                                    forceNewMessage = false
+                                )
                             } else {
                                 val correctWord = trainer.getCurrentCorrectWord()
                                 service.sendMessage(
@@ -135,6 +163,103 @@ fun main(args: Array<String>) {
             e.printStackTrace()
         }
     }
+}
+
+private fun sendOrUpdateStatistics(
+    chatId: Long,
+    trainerManager: UserTrainerManager,
+    telegramBotService: TelegramBotService,
+    dynamicMessage: DynamicMessage,
+    animationFrameByChat: MutableMap<Long, Int>,
+    forceNewMessage: Boolean
+) {
+    val stats = trainerManager.getTrainer(chatId).getStatistics()
+    val frame = nextFrame(chatId, animationFrameByChat)
+    val statsText = buildStatisticsText(stats, frame)
+
+    if (!forceNewMessage && dynamicMessage.hasMessage(chatId)) {
+        val messageId = dynamicMessage.getMessageId(chatId)
+        if (messageId != null) {
+            val editResponse = telegramBotService.editMessage(chatId, messageId, statsText)
+            val ok = telegramBotService.isOkResponse(editResponse)
+            val notModified = telegramBotService.responseDescription(editResponse)
+                ?.contains("message is not modified", ignoreCase = true) == true
+
+            if (ok || notModified) {
+                dynamicMessage.rememberText(chatId, statsText)
+                return
+            }
+        }
+    }
+
+    val sendResponse = telegramBotService.sendMessage(chatId, statsText)
+    telegramBotService.extractMessageId(sendResponse)?.let { messageId ->
+        dynamicMessage.setMessageId(chatId, messageId)
+    }
+    dynamicMessage.rememberText(chatId, statsText)
+}
+
+private fun handleUndoCommand(
+    chatId: Long,
+    trainerManager: UserTrainerManager,
+    telegramBotService: TelegramBotService,
+    dynamicMessage: DynamicMessage,
+    animationFrameByChat: MutableMap<Long, Int>
+) {
+    val trainer = trainerManager.getTrainer(chatId)
+    val undone = trainer.undoLastCorrectAnswer()
+
+    if (!undone) {
+        telegramBotService.sendMessage(chatId, "Нечего откатывать: нет предыдущего правильного ответа")
+        return
+    }
+
+    telegramBotService.sendMessage(chatId, "Откатил последний правильный ответ ↩")
+
+    val messageId = dynamicMessage.getMessageId(chatId)
+    if (messageId == null) return
+
+    val rollbackText = dynamicMessage.rollbackText(chatId)
+        ?: buildStatisticsText(trainer.getStatistics(), nextFrame(chatId, animationFrameByChat))
+
+    val response = telegramBotService.editMessage(chatId, messageId, rollbackText)
+    val ok = telegramBotService.isOkResponse(response)
+    val notModified = telegramBotService.responseDescription(response)
+        ?.contains("message is not modified", ignoreCase = true) == true
+
+    if (ok || notModified) return
+
+    // Если редактирование не удалось (например, старое сообщение), отправляем новое и продолжаем работать с ним.
+    val freshText = buildStatisticsText(trainer.getStatistics(), nextFrame(chatId, animationFrameByChat))
+    val sendResponse = telegramBotService.sendMessage(chatId, freshText)
+    telegramBotService.extractMessageId(sendResponse)?.let { newMessageId ->
+        dynamicMessage.setMessageId(chatId, newMessageId)
+    }
+    dynamicMessage.rememberText(chatId, freshText)
+}
+
+private fun nextFrame(chatId: Long, animationFrameByChat: MutableMap<Long, Int>): Int {
+    val next = ((animationFrameByChat[chatId] ?: -1) + 1) % 4
+    animationFrameByChat[chatId] = next
+    return next
+}
+
+private fun buildStatisticsText(stats: Statistics, frame: Int): String {
+    val spinner = "|/-\\"[frame]
+    val progressBar = buildProgressBar(stats.percent, frame)
+    return """
+        Статистика $spinner
+        Выучено ${stats.learnedCount} из ${stats.totalCount} слов
+        Прогресс: $progressBar ${stats.percent}%
+    """.trimIndent()
+}
+
+private fun buildProgressBar(percent: Int, frame: Int, width: Int = 20): String {
+    val safePercent = percent.coerceIn(0, 100)
+    val filled = (safePercent * width) / 100
+    val emptySymbol = if (frame % 2 == 0) '-' else '.'
+
+    return "[${"#".repeat(filled)}${emptySymbol.toString().repeat(width - filled)}]"
 }
 
 private fun handleDictionaryUpload(
@@ -184,7 +309,7 @@ private fun mergeWordsIntoUserDictionary(
 
     var added = 0
 
-    dictionaryFile.readLines()
+    readDictionaryLinesWithFallback(dictionaryFile)
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .forEach { line ->
@@ -206,6 +331,39 @@ private fun mergeWordsIntoUserDictionary(
     repo.save(current)
 
     return added
+}
+
+internal fun readDictionaryLinesWithFallback(dictionaryFile: File): List<String> {
+    val bytes = dictionaryFile.readBytes()
+
+    data class Candidate(
+        val charset: Charset,
+        val text: String,
+        val replacementChars: Int,
+        val separators: Int
+    )
+
+    val candidates = listOf(Charsets.UTF_8, Charset.forName("windows-1251"))
+        .map { charset ->
+            val text = bytes.toString(charset)
+            Candidate(
+                charset = charset,
+                text = text,
+                replacementChars = text.count { it == '\uFFFD' },
+                separators = text.count { it == '|' }
+            )
+        }
+
+    val best = candidates.minWithOrNull(
+        compareBy<Candidate> { it.replacementChars }
+            .thenByDescending { it.separators }
+    ) ?: return emptyList()
+
+    if (best.charset != Charsets.UTF_8) {
+        println("INFO: dictionary decoding fallback charset=${best.charset.name()} file=${dictionaryFile.name}")
+    }
+
+    return best.text.lineSequence().toList()
 }
 
 fun checkNextQuestionAndSend(
@@ -233,39 +391,29 @@ fun checkNextQuestionAndSend(
         val hint = imageIndex.find(hintKey)
 
         val cached = fileIdCache.get(hintKey)
-        println(
-            "DEBUG: hint lookup key='$hintKey' found=${hint != null} cacheHit=${!cached.isNullOrBlank()} " +
-                "questionOriginal='${question.questionWord.original}' questionTranslate='${question.questionWord.translate}'"
-        )
 
         if (hint != null) {
             if (!cached.isNullOrBlank()) {
                 val resp = telegramBotService.sendPhotoByFileId(chatId, cached, hint.hasSpoiler)
                 val ok = resp.contains("\"ok\":true")
-                println("DEBUG: sendHint(file_id) key='$hintKey' ok=$ok")
 
                 if (!ok) {
-                    println("DEBUG: cached file_id failed for key='$hintKey', fallback to upload. resp=$resp")
                     val file = ResourceFileExtractor.extractTo(hint.path)
-                    println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                     val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                     telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                        println("DEBUG: caching new file_id for key='$hintKey' = $newId")
                         fileIdCache.put(hintKey, newId)
                     }
                 }
             } else {
                 val file = ResourceFileExtractor.extractTo(hint.path)
-                println("DEBUG: extracted resource '${hint.path}' -> ${file.absolutePath} size=${file.length()}")
                 val uploadResp = telegramBotService.sendPhotoByFile(chatId, file, hint.hasSpoiler)
                 telegramBotService.extractBestPhotoFileId(uploadResp)?.let { newId ->
-                    println("DEBUG: caching file_id for key='$hintKey' = $newId")
                     fileIdCache.put(hintKey, newId)
                 }
             }
         }
     } catch (e: Exception) {
-        println("DEBUG: sendHint failed: ${e.message}")
+        println("WARN: sendHint failed: ${e.message}")
         e.printStackTrace()
     }
 
