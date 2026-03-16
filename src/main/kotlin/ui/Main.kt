@@ -1,18 +1,15 @@
 package ui
 
-import data.DictionaryRepository
+import data.FileUserDictionary
 import domain.WordTrainer
-import model.toTrainingStats
 
 private const val MIN_CORRECT = 3
 
 fun main() {
-    val repository = DictionaryRepository("words.txt")
-    val dictionary = repository.load().toMutableList()
+    val userDictionary = FileUserDictionary("words.txt", MIN_CORRECT)
 
     val trainer = WordTrainer(
-        dictionary = dictionary,
-        repository = repository,
+        userDictionary = userDictionary,
         minCorrect = MIN_CORRECT
     )
 
@@ -30,7 +27,7 @@ fun main() {
             }
 
             2 -> {
-                val stats = dictionary.toTrainingStats(MIN_CORRECT)
+                val stats = trainer.getStatistics()
                 printStatistics(stats)
             }
 

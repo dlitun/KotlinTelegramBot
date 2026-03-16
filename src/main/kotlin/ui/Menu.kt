@@ -1,6 +1,6 @@
 package ui
 
-import model.TrainingStats
+import model.Statistics
 
 fun printMenu() {
     println(
@@ -13,6 +13,6 @@ fun printMenu() {
     )
 }
 
-fun printStatistics(stats: TrainingStats) {
-    println("Выучено ${stats.learnedWords} из ${stats.totalWords} слов | ${stats.learnedPercent}%\n")
+fun printStatistics(stats: Statistics) {
+    println("Выучено ${stats.learnedCount} из ${stats.totalCount} слов | ${stats.percent}%\n")
 }

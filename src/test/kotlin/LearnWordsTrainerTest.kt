@@ -1,4 +1,4 @@
-import data.DictionaryRepository
+import data.FileUserDictionary
 import model.Statistics
 import org.junit.jupiter.api.Test
 import trainer.LearnWordsTrainer
@@ -28,8 +28,8 @@ class LearnWordsTrainerTest {
     @Test
     fun `test statistics with 4 words of 7`() {
         val file = create4Of7DictionaryFile()
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         assertEquals(
             Statistics(totalCount = 7, learnedCount = 4, percent = 57),
@@ -46,9 +46,8 @@ class LearnWordsTrainerTest {
             """
         )
 
-        val repository = DictionaryRepository(file.absolutePath)
-        assertFailsWith<IndexOutOfBoundsException> {
-            LearnWordsTrainer(repository)
+        assertFailsWith<IllegalArgumentException> {
+            LearnWordsTrainer(FileUserDictionary(file.absolutePath))
         }
     }
 
@@ -65,8 +64,8 @@ class LearnWordsTrainerTest {
             """
         )
 
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         val question = trainer.getNextQuestion()
         assertNotNull(question)
@@ -83,8 +82,8 @@ class LearnWordsTrainerTest {
             """
         )
 
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         val question = trainer.getNextQuestion()
         assertNotNull(question)
@@ -101,8 +100,8 @@ class LearnWordsTrainerTest {
             """
         )
 
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         val question = trainer.getNextQuestion()
         assertNull(question)
@@ -111,8 +110,8 @@ class LearnWordsTrainerTest {
     @Test
     fun `test checkAnswer() with true`() {
         val file = create4Of7DictionaryFile()
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         val question = trainer.getNextQuestion()
         assertNotNull(question)
@@ -126,8 +125,8 @@ class LearnWordsTrainerTest {
     @Test
     fun `test checkAnswer() with false`() {
         val file = create4Of7DictionaryFile()
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         val question = trainer.getNextQuestion()
         assertNotNull(question)
@@ -146,12 +145,12 @@ class LearnWordsTrainerTest {
             """
         )
 
-        val repository = DictionaryRepository(file.absolutePath)
-        val trainer = LearnWordsTrainer(repository)
+        val dictionary = FileUserDictionary(file.absolutePath)
+        val trainer = LearnWordsTrainer(dictionary)
 
         trainer.resetProgress()
 
-        val after = repository.load()
+        val after = dictionary.getUnlearnedWords() + dictionary.getLearnedWords()
         assertEquals(0, after[0].correctAnswersCount)
         assertEquals(0, after[1].correctAnswersCount)
     }

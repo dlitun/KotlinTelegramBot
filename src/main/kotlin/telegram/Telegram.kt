@@ -1,9 +1,7 @@
 package telegram
 
-import data.DictionaryRepository
 import model.Statistics
 import trainer.UserTrainerManager
-import trainer.Word
 import java.io.File
 import java.nio.charset.Charset
 
@@ -24,7 +22,7 @@ fun main(args: Array<String>) {
 
     val trainerManager = UserTrainerManager(
         baseWordsFilePath = "src/main/resources/words.txt",
-        usersDirPath = "users",
+        dbFilePath = "trainer.db",
         minCorrect = 3
     )
 
@@ -285,53 +283,11 @@ private fun handleDictionaryUpload(
         service.downloadFile(filePath, downloadedFile.absolutePath)
     }
 
-    val added = mergeWordsIntoUserDictionary(chatId, downloadedFile, trainerManager)
+    val added = trainerManager.updateDictionary(downloadedFile)
 
     service.sendMessage(chatId, "Готово ✅ Добавлено слов: $added")
 }
 
-private fun mergeWordsIntoUserDictionary(
-    chatId: Long,
-    dictionaryFile: File,
-    trainerManager: UserTrainerManager
-): Int {
-    val userFile = File("users", "words_$chatId.txt")
-    if (!userFile.exists()) {
-        trainerManager.getTrainer(chatId)
-    }
-
-    val repo = DictionaryRepository(userFile.absolutePath)
-    val current = repo.load()
-
-    val existingKeys = current
-        .map { "${it.original}|${it.translate}" }
-        .toHashSet()
-
-    var added = 0
-
-    readDictionaryLinesWithFallback(dictionaryFile)
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .forEach { line ->
-            val parts = line.split("|")
-            if (parts.size < 2) return@forEach
-
-            val original = parts[0].trim()
-            val translate = parts[1].trim()
-            if (original.isBlank() || translate.isBlank()) return@forEach
-
-            val key = "$original|$translate"
-            if (existingKeys.contains(key)) return@forEach
-
-            current.add(Word(original = original, translate = translate, correctAnswersCount = 0))
-            existingKeys.add(key)
-            added++
-        }
-
-    repo.save(current)
-
-    return added
-}
 
 internal fun readDictionaryLinesWithFallback(dictionaryFile: File): List<String> {
     val bytes = dictionaryFile.readBytes()
