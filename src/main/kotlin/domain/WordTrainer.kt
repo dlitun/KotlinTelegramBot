@@ -1,20 +1,19 @@
 package domain
 
-import data.DictionaryRepository
+import data.IUserDictionary
 import model.Question
 import model.Statistics
 import trainer.Word
 
 class WordTrainer(
-    private val dictionary: MutableList<Word>,
-    private val repository: DictionaryRepository,
+    private val userDictionary: IUserDictionary,
     private val minCorrect: Int
 ) {
     private var currentQuestion: Question? = null
-    private val correctAnswerHistory = ArrayDeque<Pair<String, String>>()
+    private val correctAnswerHistory = ArrayDeque<Pair<String, Int>>()
 
     fun hasUnlearnedWords(): Boolean =
-        dictionary.any { it.correctAnswersCount < minCorrect }
+        userDictionary.getUnlearnedWords().isNotEmpty()
 
     fun getNextQuestion(): Question? {
         if (!hasUnlearnedWords()) {
@@ -27,7 +26,7 @@ class WordTrainer(
     }
 
     fun createQuestion(): Question {
-        val notLearned = dictionary.filter { it.correctAnswersCount < minCorrect }
+        val notLearned = userDictionary.getUnlearnedWords()
         val options = notLearned.shuffled().take(4)
         val correct = options.random()
         return Question(correct, options)
@@ -47,15 +46,10 @@ class WordTrainer(
     fun undoLastCorrectAnswer(): Boolean {
         val lastCorrect = correctAnswerHistory.removeLastOrNull() ?: return false
 
-        val index = dictionary.indexOfFirst {
-            it.original == lastCorrect.first && it.translate == lastCorrect.second
-        }
+        val currentWord = findWordByOriginal(lastCorrect.first) ?: return false
+        if (currentWord.correctAnswersCount <= 0) return false
 
-        if (index == -1) return false
-        if (dictionary[index].correctAnswersCount <= 0) return false
-
-        dictionary[index].correctAnswersCount--
-        repository.save(dictionary)
+        userDictionary.setCorrectAnswersCount(lastCorrect.first, lastCorrect.second)
         return true
     }
 
@@ -63,8 +57,8 @@ class WordTrainer(
         currentQuestion?.questionWord
 
     fun getStatistics(): Statistics {
-        val totalCount = dictionary.size
-        val learnedCount = dictionary.count { it.correctAnswersCount >= minCorrect }
+        val totalCount = userDictionary.getSize()
+        val learnedCount = userDictionary.getNumOfLearnedWords()
         val percent = if (totalCount == 0) 0 else (learnedCount * 100) / totalCount
 
         return Statistics(
@@ -75,14 +69,14 @@ class WordTrainer(
     }
 
     private fun incrementCorrectAnswer(word: Word) {
-        val index = dictionary.indexOfFirst {
-            it.original == word.original && it.translate == word.translate
-        }
+        val currentWord = findWordByOriginal(word.original) ?: return
+        val previousCount = currentWord.correctAnswersCount
+        userDictionary.setCorrectAnswersCount(word.original, previousCount + 1)
+        correctAnswerHistory.addLast(word.original to previousCount)
+    }
 
-        if (index != -1) {
-            dictionary[index].correctAnswersCount++
-            correctAnswerHistory.addLast(dictionary[index].original to dictionary[index].translate)
-            repository.save(dictionary)
-        }
+    private fun findWordByOriginal(original: String): Word? {
+        val allWords = userDictionary.getLearnedWords() + userDictionary.getUnlearnedWords()
+        return allWords.find { it.original == original }
     }
 }

@@ -1,60 +1,65 @@
 package trainer
 
+import data.DatabaseUserDictionary
+import data.DictionaryDataSource
 import java.io.File
 
 class UserTrainerManager(
     private val baseWordsFilePath: String,
-    private val usersDirPath: String,
+    dbFilePath: String,
     private val minCorrect: Int = 3
 ) {
+    private val dataSource = DictionaryDataSource(dbFilePath)
     private val trainers = mutableMapOf<Long, LearnWordsTrainer>()
+
+    init {
+        seedBaseDictionary()
+    }
 
     fun getTrainer(chatId: Long): LearnWordsTrainer {
         return trainers.getOrPut(chatId) {
-            val userFile = ensureUserDictionaryFile(chatId)
-            val repository = data.DictionaryRepository(userFile.absolutePath)
-            LearnWordsTrainer(repository = repository, minCorrect = minCorrect)
+            val userDictionary = DatabaseUserDictionary(
+                dataSource = dataSource,
+                chatId = chatId,
+                learningThreshold = minCorrect
+            )
+            LearnWordsTrainer(userDictionary = userDictionary, minCorrect = minCorrect)
         }
     }
 
     fun reset(chatId: Long) {
         trainers.remove(chatId)
 
-        val userFile = ensureUserDictionaryFile(chatId)
-        val repository = data.DictionaryRepository(userFile.absolutePath)
-        repository.resetProgress()
+        val userDictionary = DatabaseUserDictionary(
+            dataSource = dataSource,
+            chatId = chatId,
+            learningThreshold = minCorrect
+        )
+        userDictionary.resetUserProgress()
     }
 
-    private fun ensureUserDictionaryFile(chatId: Long): File {
-        val dir = File(usersDirPath)
-        if (!dir.exists()) dir.mkdirs()
-
-        val userFile = File(dir, "words_$chatId.txt")
-
-        if (!userFile.exists()) {
-            val text = loadBaseWordsText()
-            userFile.writeText(text)
-
-            val repo = data.DictionaryRepository(userFile.absolutePath)
-            repo.resetProgress()
-        }
-
-        return userFile
+    fun updateDictionary(wordsFile: File): Int {
+        val added = dataSource.updateDictionary(wordsFile)
+        trainers.clear()
+        return added
     }
 
-    private fun loadBaseWordsText(): String {
-        // 1) Пытаемся взять из jar resources (то, что нужно на VPS)
+    private fun seedBaseDictionary() {
         val resourceName = File(baseWordsFilePath).name
         val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourceName)
+
         if (stream != null) {
-            val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            return text
+            val tempFile = kotlin.io.path.createTempFile(prefix = "base_words_", suffix = ".txt").toFile()
+            tempFile.writeText(stream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+            dataSource.updateDictionary(tempFile)
+            tempFile.delete()
+            return
         }
 
-        // 2) Fallback: путь на диске (может понадобиться при кастомном запуске)
         val baseFile = File(baseWordsFilePath)
-        require(baseFile.exists()) { "Base words file not found: ${baseFile.absolutePath} (and resource '$resourceName' not found)" }
-        val text = baseFile.readText()
-        return text
+        require(baseFile.exists()) {
+            "Base words file not found: ${baseFile.absolutePath} (and resource '$resourceName' not found)"
+        }
+        dataSource.updateDictionary(baseFile)
     }
 }

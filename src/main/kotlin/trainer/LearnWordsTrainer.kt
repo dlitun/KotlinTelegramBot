@@ -1,19 +1,16 @@
 package trainer
 
-import data.DictionaryRepository
+import data.IUserDictionary
 import domain.WordTrainer
 import model.Question
 import model.Statistics
 
 class LearnWordsTrainer(
-    private val repository: DictionaryRepository,
+    private val userDictionary: IUserDictionary,
     private val minCorrect: Int = 3
 ) {
-    private val dictionary: MutableList<Word> = repository.load()
-
     private val wordTrainer = WordTrainer(
-        dictionary = dictionary,
-        repository = repository,
+        userDictionary = userDictionary,
         minCorrect = minCorrect
     )
 
@@ -38,6 +35,6 @@ class LearnWordsTrainer(
     }
 
     fun resetProgress() {
-        repository.resetProgress()
+        userDictionary.resetUserProgress()
     }
 }
