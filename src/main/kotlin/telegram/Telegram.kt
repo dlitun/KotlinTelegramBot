@@ -1,6 +1,7 @@
 package telegram
 
 import model.Statistics
+import security.InputSecurity
 import trainer.UserTrainerManager
 import java.io.File
 import java.nio.charset.Charset
@@ -13,6 +14,8 @@ private const val CALLBACK_LEARN = "learn_words_clicked"
 private const val CALLBACK_STATS = "statistics_clicked"
 private const val CALLBACK_RESET = "reset_clicked"
 private const val CALLBACK_DATA_ANSWER_PREFIX = "answer_"
+private val callbackAnswerRegex = Regex("^${Regex.escape(CALLBACK_DATA_ANSWER_PREFIX)}\\d+$")
+private val allowedCallbackValues = setOf(CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
 
 fun main(args: Array<String>) {
     val token = args.getOrNull(0)
@@ -63,6 +66,10 @@ fun main(args: Array<String>) {
                     }
 
                     val text = message.text ?: return@let
+                    if (InputSecurity.containsSuspiciousSqlPattern(text)) {
+                        InputSecurity.logSuspiciousInput("message.text", text, chatId)
+                    }
+
                     when (text) {
                         START_COMMAND -> {
                             service.sendMenu(chatId, CALLBACK_LEARN, CALLBACK_STATS, CALLBACK_RESET)
@@ -96,6 +103,16 @@ fun main(args: Array<String>) {
                     val data = callback.data ?: return@let
                     val chatId = callback.message?.chat?.id ?: return@let
                     val trainer = trainerManager.getTrainer(chatId)
+
+                    if (!isAllowedCallbackData(data)) {
+                        InputSecurity.logSuspiciousInput("callback.data.invalid", data, chatId)
+                        service.sendMessage(chatId, "Некорректные данные callback")
+                        return@let
+                    }
+
+                    if (InputSecurity.containsSuspiciousSqlPattern(data)) {
+                        InputSecurity.logSuspiciousInput("callback.data", data, chatId)
+                    }
 
                     when {
                         data == CALLBACK_STATS -> {
@@ -268,6 +285,10 @@ private fun handleDictionaryUpload(
     service: TelegramBotService,
     trainerManager: UserTrainerManager
 ) {
+    if (InputSecurity.containsSuspiciousSqlPattern(originalFileName)) {
+        InputSecurity.logSuspiciousInput("document.file_name", originalFileName, chatId)
+    }
+
     service.sendMessage(chatId, "Файл получен: $originalFileName. Скачиваю...")
 
     val filePath = service.getFilePath(documentFileId)
@@ -375,4 +396,8 @@ fun checkNextQuestionAndSend(
 
     // 2) Сам вопрос
     telegramBotService.sendQuestion(chatId, question)
+}
+
+private fun isAllowedCallbackData(data: String): Boolean {
+    return data in allowedCallbackValues || callbackAnswerRegex.matches(data)
 }
