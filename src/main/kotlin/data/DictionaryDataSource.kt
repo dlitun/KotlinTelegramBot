@@ -33,9 +33,8 @@ class DictionaryDataSource(private val dbFilePath: String) {
                 val parts = line.split("|")
                 if (parts.size < 2) continue
 
-                val original = parts[0].trim()
-                val translate = parts[1].trim()
-                if (original.isBlank() || translate.isBlank()) continue
+                val original = validateDictionaryWord(parts[0], "updateDictionary.original") ?: continue
+                val translate = validateDictionaryWord(parts[1], "updateDictionary.translate") ?: continue
 
                 statement.setString(1, original)
                 statement.setString(2, translate)
@@ -48,6 +47,8 @@ class DictionaryDataSource(private val dbFilePath: String) {
     }
 
     fun ensureUser(chatId: Long, username: String? = null) {
+        val safeUsername = validateUsername(username)
+
         connection().use { connection ->
             val statement = connection.prepareStatement(
                 """
@@ -58,7 +59,7 @@ class DictionaryDataSource(private val dbFilePath: String) {
                 """.trimIndent()
             )
             statement.setLong(1, chatId)
-            statement.setString(2, username)
+            statement.setString(2, safeUsername)
             statement.setString(3, Instant.now().toString())
             statement.executeUpdate()
         }
@@ -101,9 +102,11 @@ class DictionaryDataSource(private val dbFilePath: String) {
         getWordsByThreshold(chatId, learningThreshold, learned = false)
 
     fun setCorrectAnswersCount(chatId: Long, word: String, correctAnswersCount: Int) {
+        val safeWord = validateDictionaryWord(word, "setCorrectAnswersCount.word") ?: return
+
         connection().use { connection ->
             val userId = getUserId(connection, chatId) ?: return
-            val wordId = getWordId(connection, word) ?: return
+            val wordId = getWordId(connection, safeWord) ?: return
 
             val statement = connection.prepareStatement(
                 """
@@ -137,6 +140,8 @@ class DictionaryDataSource(private val dbFilePath: String) {
     }
 
     fun getCorrectAnswersCount(chatId: Long, word: String): Int {
+        val safeWord = validateDictionaryWord(word, "getCorrectAnswersCount.word") ?: return 0
+
         connection().use { connection ->
             val statement = connection.prepareStatement(
                 """
@@ -149,7 +154,7 @@ class DictionaryDataSource(private val dbFilePath: String) {
                 """.trimIndent()
             )
             statement.setLong(1, chatId)
-            statement.setString(2, word)
+            statement.setString(2, safeWord)
             statement.executeQuery().use { rs ->
                 return if (rs.next()) rs.getInt(1) else 0
             }
@@ -157,20 +162,30 @@ class DictionaryDataSource(private val dbFilePath: String) {
     }
 
     private fun getWordsByThreshold(chatId: Long, learningThreshold: Int, learned: Boolean): List<Word> {
-        val comparator = if (learned) ">=" else "<"
+        val sql = if (learned) {
+            """
+            SELECT w.text, w.translate, COALESCE(ua.correct_answer_count, 0) AS correct_answer_count
+            FROM words w
+            LEFT JOIN user_answers ua
+                ON ua.word_id = w.id
+                AND ua.user_id = (SELECT id FROM users WHERE chat_id = ?)
+            WHERE COALESCE(ua.correct_answer_count, 0) >= ?
+            ORDER BY w.id
+            """.trimIndent()
+        } else {
+            """
+            SELECT w.text, w.translate, COALESCE(ua.correct_answer_count, 0) AS correct_answer_count
+            FROM words w
+            LEFT JOIN user_answers ua
+                ON ua.word_id = w.id
+                AND ua.user_id = (SELECT id FROM users WHERE chat_id = ?)
+            WHERE COALESCE(ua.correct_answer_count, 0) < ?
+            ORDER BY w.id
+            """.trimIndent()
+        }
 
         connection().use { connection ->
-            val statement = connection.prepareStatement(
-                """
-                SELECT w.text, w.translate, COALESCE(ua.correct_answer_count, 0) AS correct_answer_count
-                FROM words w
-                LEFT JOIN user_answers ua
-                    ON ua.word_id = w.id
-                    AND ua.user_id = (SELECT id FROM users WHERE chat_id = ?)
-                WHERE COALESCE(ua.correct_answer_count, 0) $comparator ?
-                ORDER BY w.id
-                """.trimIndent()
-            )
+            val statement = connection.prepareStatement(sql)
             statement.setLong(1, chatId)
             statement.setInt(2, learningThreshold)
 
